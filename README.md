@@ -33,8 +33,8 @@ This script solves the common problem: **"Can my computer run local LLMs, and if
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/llm-hardware-checker.git
-cd llm-hardware-checker
+git clone https://github.com/humaxai2025/LLMHardwareChecker.git
+cd LLMHardwareChecker
 
 # Install required dependencies
 pip install psutil
@@ -66,17 +66,17 @@ python llm_checker.py
 
 ```bash
 # Create virtual environment
-python -m venv llm-checker-env
+python -m venv llmhardwarechecker-env
 
 # Activate it
 # On Windows:
 llm-checker-env\Scripts\activate
 # On macOS/Linux:
-source llm-checker-env/bin/activate
+source llmhardwarechecker-env/bin/activate
 
 # Install dependencies and run
 pip install psutil
-python llm_checker.py
+python llmhardwarechecker.py
 ```
 
 The script will automatically:
@@ -395,11 +395,11 @@ If this script helped you find the right LLM for your system, please consider:
 
 ⭐ **Starring this repository** - it helps others discover this tool!
 
-Found a bug or have a feature request? Please [open an issue](https://github.com/your-username/llm-hardware-checker/issues).
+Found a bug or have a feature request? Please [open an issue](https://github.com/humaxai2025/LLMHardwareChecker/issues).
 
 ---
 
-**Made with ❤️ for the AI community. Happy LLM running! 🤖**
+**Made with ❤️ by HumanXAi for the AI community. Happy LLM running! 🤖**
 
 ---
 
