@@ -70,7 +70,7 @@ python -m venv llmhardwarechecker-env
 
 # Activate it
 # On Windows:
-llm-checker-env\Scripts\activate
+llmhardwarechecker-env\Scripts\activate
 # On macOS/Linux:
 source llmhardwarechecker-env/bin/activate
 
