@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """
-LLM Hardware Compatibility Checker with Installation Guide
-Analyzes your system hardware and provides specific installation instructions for compatible LLMs
+Complete LLM Hardware Compatibility Checker with Report Generation
+Analyzes your system hardware and provides personalized recommendations for running LLMs locally
+Includes HTML and PDF report generation capabilities
 """
 
 import platform
 import psutil
 import subprocess
 import sys
+import argparse
+import json
+import os
+from datetime import datetime
 from pathlib import Path
 
 # Try to import GPU detection libraries
@@ -22,6 +27,17 @@ try:
     NVML_AVAILABLE = True
 except ImportError:
     NVML_AVAILABLE = False
+
+# For PDF generation using ReportLab
+try:
+    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
 
 class SystemAnalyzer:
     def __init__(self):
@@ -139,6 +155,9 @@ class LLMRecommender:
     
     def create_llm_database(self):
         """Database of popular LLMs with installation instructions"""
+        # Note: This covers major, locally-deployable models. 
+        # For a complete list of all LLMs, see: https://huggingface.co/models
+        # Many models (GPT-4, Claude, etc.) are API-only and not included
         return {
             # Small models (1-3B parameters)
             "Phi-3 Mini (3.8B)": {
@@ -377,6 +396,126 @@ class LLMRecommender:
                         "note": "Professional-grade coding assistant"
                     }
                 }
+            },
+            
+            # SPECIALIZED MODELS - Domain-specific, truly deployable models
+            "StarCoder 7B": {
+                "parameters": "7B",
+                "min_ram_gb": 6,
+                "recommended_ram_gb": 12,
+                "min_vram_gb": 4,
+                "recommended_vram_gb": 6,
+                "cpu_only": True,
+                "domain": "Code Generation",
+                "description": "Multi-language code generation, supports 80+ programming languages",
+                "install_methods": {
+                    "ollama": {
+                        "command": "ollama run starcoder:7b",
+                        "note": "Excellent for diverse programming languages"
+                    },
+                    "huggingface": {
+                        "model_id": "bigcode/starcoder",
+                        "command": "No login required",
+                        "note": "Open source code generation model"
+                    },
+                    "gguf": {
+                        "source": "https://huggingface.co/TheBloke/starcoder-GGUF",
+                        "recommended_quant": "Q4_K_M",
+                        "note": "Optimized for code completion and generation"
+                    }
+                }
+            },
+            "BioMistral 7B": {
+                "parameters": "7B",
+                "min_ram_gb": 6,
+                "recommended_ram_gb": 12,
+                "min_vram_gb": 4,
+                "recommended_vram_gb": 6,
+                "cpu_only": True,
+                "domain": "Medical/Biology",
+                "description": "Medical knowledge model for healthcare professionals and researchers",
+                "install_methods": {
+                    "huggingface": {
+                        "model_id": "BioMistral/BioMistral-7B",
+                        "command": "No login required",
+                        "note": "Specialized for medical and biological text"
+                    },
+                    "gguf": {
+                        "source": "https://huggingface.co/TheBloke/BioMistral-7B-GGUF",
+                        "recommended_quant": "Q4_K_M",
+                        "note": "Optimized for medical Q&A and research"
+                    }
+                }
+            },
+            "MetaMath 7B": {
+                "parameters": "7B",
+                "min_ram_gb": 6,
+                "recommended_ram_gb": 12,
+                "min_vram_gb": 4,
+                "recommended_vram_gb": 6,
+                "cpu_only": True,
+                "domain": "Mathematics",
+                "description": "Mathematical reasoning and problem-solving specialist",
+                "install_methods": {
+                    "huggingface": {
+                        "model_id": "meta-math/MetaMath-7B-V1.0",
+                        "command": "No login required",
+                        "note": "Excellent for mathematical problem solving"
+                    },
+                    "gguf": {
+                        "source": "https://huggingface.co/TheBloke/MetaMath-7B-V1.0-GGUF",
+                        "recommended_quant": "Q4_K_M",
+                        "note": "Optimized for step-by-step math solutions"
+                    }
+                }
+            },
+            "WizardCoder 7B": {
+                "parameters": "7B",
+                "min_ram_gb": 6,
+                "recommended_ram_gb": 12,
+                "min_vram_gb": 4,
+                "recommended_vram_gb": 6,
+                "cpu_only": True,
+                "domain": "Code Generation",
+                "description": "Advanced coding assistant with strong reasoning capabilities",
+                "install_methods": {
+                    "huggingface": {
+                        "model_id": "WizardLM/WizardCoder-7B-V1.0",
+                        "command": "No login required",
+                        "note": "Enhanced code generation and debugging"
+                    },
+                    "gguf": {
+                        "source": "https://huggingface.co/TheBloke/WizardCoder-7B-V1.0-GGUF",
+                        "recommended_quant": "Q4_K_M",
+                        "note": "Strong performance on coding benchmarks"
+                    }
+                }
+            },
+            "Nous Hermes 2 - Solar 10.7B": {
+                "parameters": "10.7B",
+                "min_ram_gb": 8,
+                "recommended_ram_gb": 16,
+                "min_vram_gb": 6,
+                "recommended_vram_gb": 8,
+                "cpu_only": True,
+                "domain": "Research/Analysis",
+                "description": "Research and analysis specialist with strong reasoning",
+                "install_methods": {
+                    "ollama": {
+                        "command": "ollama run nous-hermes2-solar:10.7b",
+                        "note": "Excellent for research and analytical tasks"
+                    },
+                    "huggingface": {
+                        "model_id": "NousResearch/Nous-Hermes-2-SOLAR-10.7B",
+                        "command": "No login required",
+                        "note": "High-quality reasoning and analysis"
+                    },
+                    "gguf": {
+                        "source": "https://huggingface.co/TheBloke/Nous-Hermes-2-SOLAR-10.7B-GGUF",
+                        "recommended_quant": "Q4_K_M for 8GB VRAM, Q5_K_M for 12GB+",
+                        "note": "Great for complex analytical tasks"
+                    }
+                }
             }
         }
     
@@ -466,18 +605,56 @@ class LLMRecommender:
             self.print_insufficient_hardware_message(recommendations)
             return
         
-        categories = [
-            ('excellent', '🟢 EXCELLENT PERFORMANCE', recommendations['excellent']),
-            ('good', '🟡 GOOD PERFORMANCE', recommendations['good']),
-            ('basic', '🟠 BASIC PERFORMANCE', recommendations['basic'])
+        # Separate general and specialized models
+        general_models = {'excellent': [], 'good': [], 'basic': []}
+        specialized_models = {'excellent': [], 'good': [], 'basic': []}
+        
+        for category in ['excellent', 'good', 'basic']:
+            for model in recommendations[category]:
+                if 'domain' in model['specs']:
+                    specialized_models[category].append(model)
+                else:
+                    general_models[category].append(model)
+        
+        # Print general models first
+        print("\n🌟 GENERAL PURPOSE MODELS")
+        print("="*40)
+        
+        general_categories = [
+            ('excellent', '🟢 EXCELLENT PERFORMANCE', general_models['excellent']),
+            ('good', '🟡 GOOD PERFORMANCE', general_models['good']),
+            ('basic', '🟠 BASIC PERFORMANCE', general_models['basic'])
         ]
         
-        for category, title, models in categories:
+        general_model_count = 0
+        for category, title, models in general_categories:
             if models:
                 print(f"\n{title}")
                 print("-" * len(title))
-                for i, model in enumerate(models, 1):
+                for i, model in enumerate(models, general_model_count + 1):
                     self.print_model_details(model, i)
+                general_model_count += len(models)
+        
+        # Print specialized models if any are suitable
+        specialized_count = sum(len(specialized_models[cat]) for cat in ['excellent', 'good', 'basic'])
+        if specialized_count > 0:
+            print(f"\n🔬 SPECIALIZED DOMAIN MODELS")
+            print("="*40)
+            print("These models are optimized for specific use cases and domains:")
+            
+            specialized_categories = [
+                ('excellent', '🟢 EXCELLENT PERFORMANCE', specialized_models['excellent']),
+                ('good', '🟡 GOOD PERFORMANCE', specialized_models['good']),
+                ('basic', '🟠 BASIC PERFORMANCE', specialized_models['basic'])
+            ]
+            
+            for category, title, models in specialized_categories:
+                if models:
+                    print(f"\n{title}")
+                    print("-" * len(title))
+                    for i, model in enumerate(models, general_model_count + 1):
+                        self.print_model_details(model, i)
+                    general_model_count += len(models)
         
         # Show not suitable models briefly
         if recommendations['not_suitable']:
@@ -488,6 +665,7 @@ class LLMRecommender:
         
         self.print_installation_platforms()
         self.print_optimization_tips()
+        self.print_additional_models_info()
     
     def print_insufficient_hardware_message(self, recommendations):
         """Print message when hardware is insufficient for any LLMs"""
@@ -557,23 +735,6 @@ class LLMRecommender:
             print(f"     Mid-range: RTX 4060 Ti (16GB VRAM)")
             print(f"     High-end: RTX 4090 (24GB VRAM)")
         
-        print(f"\n4️⃣  LIGHTWEIGHT ALTERNATIVES")
-        print("   📱 Try these minimal options:")
-        print("   • Mobile LLM apps (if you have a smartphone):")
-        print("     - LM Studio Mobile")
-        print("     - Offline ChatGPT alternatives")
-        print("   • Browser-based models:")
-        print("     - WebLLM (runs in browser)")
-        print("     - Transformers.js demos")
-        
-        print(f"\n5️⃣  FUTURE PREPARATION")
-        print("   📈 When you upgrade your hardware:")
-        print("   • Save this script to re-run the analysis")
-        print("   • Target specs for good LLM performance:")
-        print("     - RAM: 16+ GB")
-        print("     - Storage: 100+ GB free")
-        print("     - GPU: 8+ GB VRAM (optional but recommended)")
-        
         # Show what the smallest model needs
         smallest_model = min(recommendations['not_suitable'], 
                            key=lambda x: x['specs']['min_ram_gb'])
@@ -596,6 +757,11 @@ class LLMRecommender:
     def print_model_details(self, model, index):
         """Print detailed model information with installation instructions"""
         print(f"\n{index}. 📦 {model['name']}")
+        
+        # Show domain for specialized models
+        if 'domain' in model['specs']:
+            print(f"   🎯 Domain: {model['specs']['domain']}")
+        
         print(f"   📊 {model['specs']['parameters']} parameters")
         print(f"   📝 {model['specs']['description']}")
         print(f"   💾 RAM: {model['specs']['min_ram_gb']}GB min / {model['specs']['recommended_ram_gb']}GB recommended")
@@ -796,12 +962,677 @@ class LLMRecommender:
             print("\n🐧 LINUX NOTES:")
             print("   • Best platform for LLM development")
             print("   • Easy to build tools from source")
+    
+    def print_additional_models_info(self):
+        """Information about finding additional models not covered in this script"""
+        print("\n" + "="*50)
+        print("🔍 LOOKING FOR MORE MODELS?")
+        print("="*50)
+        
+        print("This script covers popular general-purpose models and selected")
+        print("specialized models for common domains. For additional models:")
+        
+        print("\n📚 MODEL REPOSITORIES:")
+        print("   • HuggingFace: https://huggingface.co/models")
+        print("     - Filter by 'Text Generation' and sort by downloads")
+        print("     - Look for models with GGUF versions available")
+        
+        print("   • Ollama Library: https://ollama.ai/library")
+        print("     - Curated models optimized for local deployment") 
+        
+        print("   • TheBloke's GGUF: https://huggingface.co/TheBloke")
+        print("     - High-quality quantized versions of popular models")
+        
+        print("\n🆕 ADDITIONAL SPECIALIZED DOMAINS:")
+        print("   • Legal: LegalBERT, LawGPT variants")
+        print("   • Finance: FinGPT variants, BloombergGPT")
+        print("   • Scientific: SciBERT, Galactica variants")
+        print("   • Multilingual: aya-101, XGLM variants")
+        print("   • Creative Writing: Specialized creative models")
+        
+        print("\n🔬 MORE DOMAIN-SPECIFIC MODELS:")
+        print("   We include these specialized domains:")
+        
+        # Show which domains are already covered
+        domains_covered = set()
+        for model_name, model_specs in self.llm_database.items():
+            if 'domain' in model_specs:
+                domains_covered.add(model_specs['domain'])
+        
+        if domains_covered:
+            print(f"   ✅ Covered: {', '.join(sorted(domains_covered))}")
+        
+        print("   🔍 Still exploring: Legal, Finance, Scientific Research")
+        print("   💡 Suggest more at: GitHub Issues")
+        
+        print("\n💡 FINDING COMPATIBLE MODELS:")
+        print("   Use your system specs as a guide:")
+        ram_gb = self.system_info['total_ram_gb']
+        max_vram = max([gpu.get('vram_gb', 0) for gpu in self.system_info['gpus'] 
+                       if isinstance(gpu.get('vram_gb'), (int, float))], default=0)
+        
+        if ram_gb >= 32 and max_vram >= 16:
+            print("   • Your system can handle: Up to 30B models")
+        elif ram_gb >= 16 and max_vram >= 8:
+            print("   • Your system can handle: Up to 13B models")
+        elif ram_gb >= 8:
+            print("   • Your system can handle: Up to 7B models")
+        else:
+            print("   • Your system can handle: Up to 3B models")
+            
+        print("   • Look for Q4_K_M or Q5_K_M quantized versions")
+        print("   • Check if model has Ollama support for easy installation")
+        
+        print("\n⚠️  MODELS NOT SUITABLE FOR LOCAL DEPLOYMENT:")
+        print("   • GPT-4, GPT-3.5 (OpenAI API only)")
+        print("   • Claude 3/4 (Anthropic API only)")
+        print("   • Gemini (Google API only)")
+        print("   • Most commercial/proprietary models")
+    
+    def generate_report(self, format_type="both", output_dir="."):
+        """Generate HTML and/or PDF reports of the analysis"""
+        recommendations = self.get_recommendations()
+        report_generator = ReportGenerator(self.system_info, recommendations, self)
+        
+        results = {}
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        if format_type in ["html", "both"]:
+            html_path = os.path.join(output_dir, f"llm_compatibility_report_{timestamp}.html")
+            html_file = report_generator.generate_html_report(html_path)
+            results['html'] = html_file
+            print(f"📄 HTML report generated: {html_file}")
+        
+        if format_type in ["pdf", "both"]:
+            if not REPORTLAB_AVAILABLE:
+                print("⚠️  PDF generation requires ReportLab: pip install reportlab")
+                results['pdf'] = None
+            else:
+                pdf_path = os.path.join(output_dir, f"llm_compatibility_report_{timestamp}.pdf")
+                pdf_file = report_generator.generate_pdf_report(pdf_path)
+                results['pdf'] = pdf_file
+                print(f"📄 PDF report generated: {pdf_file}")
+        
+        return results
+
+
+class ReportGenerator:
+    def __init__(self, system_info, recommendations, recommender):
+        self.system_info = system_info
+        self.recommendations = recommendations
+        self.recommender = recommender
+        self.timestamp = datetime.now()
+        
+    def generate_html_report(self, output_path="llm_compatibility_report.html"):
+        """Generate a detailed HTML report"""
+        html_content = self._create_html_content()
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
+        return output_path
+    
+    def generate_pdf_report(self, output_path="llm_compatibility_report.pdf"):
+        """Generate a PDF report using ReportLab"""
+        if not REPORTLAB_AVAILABLE:
+            raise ImportError("reportlab not available. Install with: pip install reportlab")
+        
+        # Create document
+        doc = SimpleDocTemplate(output_path, pagesize=letter,
+                              rightMargin=72, leftMargin=72,
+                              topMargin=72, bottomMargin=18)
+        
+        # Build story (content)
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Custom styles
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30,
+            alignment=1,  # Center
+            textColor=colors.HexColor('#2c3e50')
+        )
+        
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontSize=16,
+            spaceAfter=12,
+            textColor=colors.HexColor('#3498db')
+        )
+        
+        # Title
+        story.append(Paragraph("🤖 LLM Hardware Compatibility Report", title_style))
+        story.append(Paragraph(f"Generated on {self.timestamp.strftime('%B %d, %Y at %I:%M %p')}", 
+                              styles['Normal']))
+        story.append(Spacer(1, 20))
+        
+        # System Specifications
+        story.append(Paragraph("🖥️ System Specifications", heading_style))
+        
+        # Create system specs table
+        sys_data = [
+            ['Component', 'Specification'],
+            ['Operating System', f"{self.system_info['os']} ({self.system_info['architecture']})"],
+            ['Processor', self.system_info['processor']],
+            ['CPU Cores', f"{self.system_info['cpu_cores']} physical / {self.system_info['cpu_threads']} logical"],
+            ['Memory (RAM)', f"{self.system_info['total_ram_gb']} GB total ({self.system_info['available_ram_gb']} GB available)"],
+            ['Storage', f"{self.system_info['free_storage_gb']} GB free / {self.system_info['total_storage_gb']} GB total"],
+        ]
+        
+        if self.system_info['gpus']:
+            for i, gpu in enumerate(self.system_info['gpus']):
+                vram_info = f"{gpu['vram_gb']} GB VRAM" if isinstance(gpu['vram_gb'], (int, float)) else gpu['vram_gb']
+                sys_data.append([f'GPU {i+1}', f"{gpu['name']} ({vram_info})"])
+        else:
+            sys_data.append(['GPU', 'None detected'])
+        
+        sys_table = Table(sys_data, colWidths=[2*inch, 4*inch])
+        sys_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8f9fa')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        
+        story.append(sys_table)
+        story.append(Spacer(1, 20))
+        
+        # Recommendations
+        suitable_models = (self.recommendations['excellent'] + 
+                          self.recommendations['good'] + 
+                          self.recommendations['basic'])
+        
+        if not suitable_models:
+            story.append(Paragraph("❌ Insufficient Hardware Detected", heading_style))
+            story.append(Paragraph("Your system doesn't meet the minimum requirements for running local LLMs efficiently.", 
+                                 styles['Normal']))
+            story.append(Spacer(1, 12))
+            story.append(Paragraph("Recommended cloud-based solutions:", styles['Heading3']))
+            story.append(Paragraph("• ChatGPT: https://chat.openai.com", styles['Normal']))
+            story.append(Paragraph("• Claude: https://claude.ai", styles['Normal']))
+            story.append(Paragraph("• Google Bard: https://bard.google.com", styles['Normal']))
+        else:
+            story.append(Paragraph("🤖 Model Recommendations", heading_style))
+            
+            # Summary statistics
+            total_specialized = sum(len([m for m in self.recommendations[cat] if 'domain' in m['specs']]) 
+                                  for cat in ['excellent', 'good', 'basic'])
+            total_general = len(suitable_models) - total_specialized
+            
+            story.append(Paragraph(f"Compatible Models: {len(suitable_models)} | " +
+                                 f"General Purpose: {total_general} | " +
+                                 f"Specialized: {total_specialized}", styles['Normal']))
+            story.append(Spacer(1, 12))
+            
+            # Add model recommendations
+            categories = [
+                ('excellent', '🟢 Excellent Performance', self.recommendations['excellent']),
+                ('good', '🟡 Good Performance', self.recommendations['good']),
+                ('basic', '🟠 Basic Performance', self.recommendations['basic'])
+            ]
+            
+            for category, title, models in categories:
+                if models:
+                    story.append(Paragraph(title, styles['Heading3']))
+                    
+                    for model in models:
+                        # Model details
+                        model_name = model['name']
+                        specs = model['specs']
+                        compatibility = model['compatibility']
+                        
+                        domain_text = f" (Domain: {specs['domain']})" if 'domain' in specs else ""
+                        story.append(Paragraph(f"<b>{model_name}</b>{domain_text}", styles['Normal']))
+                        story.append(Paragraph(f"Parameters: {specs['parameters']} | " +
+                                             f"RAM: {specs['min_ram_gb']}-{specs['recommended_ram_gb']} GB | " +
+                                             f"VRAM: {specs['min_vram_gb']}-{specs['recommended_vram_gb']} GB",
+                                             styles['Normal']))
+                        story.append(Paragraph(specs['description'], styles['Normal']))
+                        
+                        if 'ollama' in specs['install_methods']:
+                            ollama_cmd = specs['install_methods']['ollama']['command']
+                            story.append(Paragraph(f"<b>Quick Install:</b> {ollama_cmd}", styles['Normal']))
+                        
+                        story.append(Spacer(1, 8))
+        
+        # Build PDF
+        doc.build(story)
+        return output_path
+    
+    def _create_html_content(self):
+        """Create the complete HTML report content"""
+        return f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Hardware Compatibility Report</title>
+    <style>
+        {self._get_css_styles()}
+    </style>
+</head>
+<body>
+    <div class="container">
+        {self._get_header()}
+        {self._get_system_specs()}
+        {self._get_recommendations_section()}
+        {self._get_footer()}
+    </div>
+</body>
+</html>
+"""
+    
+    def _get_css_styles(self):
+        """CSS styles for the HTML report"""
+        return """
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .system-specs {
+            background-color: #f8f9fa;
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .specs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .spec-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .spec-label {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .spec-value {
+            color: #555;
+            font-size: 1.1em;
+        }
+        
+        .model-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        
+        .model-name {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        
+        .model-domain {
+            background: #e74c3c;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .performance-tier {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        
+        .excellent { background-color: #d4edda; color: #155724; }
+        .good { background-color: #fff3cd; color: #856404; }
+        .basic { background-color: #f8d7da; color: #721c24; }
+        
+        .requirements {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+        }
+        
+        .req-item {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            background: #f1f3f4;
+        }
+        
+        .req-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .req-value {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 30px;
+            color: #666;
+        }
+        
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid #e9ecef;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #3498db;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+        """
+    
+    def _get_header(self):
+        """Generate HTML header section"""
+        return f"""
+        <div class="header">
+            <h1>🤖 LLM Hardware Compatibility Report</h1>
+            <div class="subtitle">Generated on {self.timestamp.strftime('%B %d, %Y at %I:%M %p')}</div>
+        </div>
+        """
+    
+    def _get_system_specs(self):
+        """Generate system specifications section"""
+        specs_html = f"""
+        <div class="section system-specs">
+            <h2>🖥️ System Specifications</h2>
+            <div class="specs-grid">
+                <div class="spec-item">
+                    <div class="spec-label">Operating System</div>
+                    <div class="spec-value">{self.system_info['os']} ({self.system_info['architecture']})</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Processor</div>
+                    <div class="spec-value">{self.system_info['processor']}</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">CPU Cores</div>
+                    <div class="spec-value">{self.system_info['cpu_cores']} physical / {self.system_info['cpu_threads']} logical</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Memory (RAM)</div>
+                    <div class="spec-value">{self.system_info['total_ram_gb']} GB total ({self.system_info['available_ram_gb']} GB available)</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Storage</div>
+                    <div class="spec-value">{self.system_info['free_storage_gb']} GB free / {self.system_info['total_storage_gb']} GB total</div>
+                </div>
+        """
+        
+        if self.system_info['gpus']:
+            for gpu in self.system_info['gpus']:
+                vram_info = f"{gpu['vram_gb']} GB VRAM" if isinstance(gpu['vram_gb'], (int, float)) else gpu['vram_gb']
+                specs_html += f"""
+                <div class="spec-item">
+                    <div class="spec-label">GPU</div>
+                    <div class="spec-value">{gpu['name']} ({vram_info})</div>
+                </div>
+                """
+        else:
+            specs_html += """
+                <div class="spec-item">
+                    <div class="spec-label">GPU</div>
+                    <div class="spec-value">None detected</div>
+                </div>
+            """
+        
+        specs_html += """
+            </div>
+        </div>
+        """
+        
+        return specs_html
+    
+    def _get_recommendations_section(self):
+        """Generate recommendations section"""
+        suitable_models = (self.recommendations['excellent'] + 
+                          self.recommendations['good'] + 
+                          self.recommendations['basic'])
+        
+        if not suitable_models:
+            return self._get_insufficient_hardware_html()
+        
+        # Generate summary statistics
+        total_suitable = len(suitable_models)
+        total_specialized = sum(len([m for m in self.recommendations[cat] if 'domain' in m['specs']]) 
+                              for cat in ['excellent', 'good', 'basic'])
+        total_general = total_suitable - total_specialized
+        
+        html = f"""
+        <div class="section">
+            <h2>🤖 Model Recommendations</h2>
+            
+            <div class="summary-stats">
+                <div class="stat-card">
+                    <div class="stat-number">{total_suitable}</div>
+                    <div class="stat-label">Compatible Models</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{total_general}</div>
+                    <div class="stat-label">General Purpose</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{total_specialized}</div>
+                    <div class="stat-label">Specialized Domain</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{len(self.recommendations['not_suitable'])}</div>
+                    <div class="stat-label">Not Suitable</div>
+                </div>
+            </div>
+        """
+        
+        # Add model recommendations
+        categories = [
+            ('excellent', '🟢 Excellent Performance', self.recommendations['excellent']),
+            ('good', '🟡 Good Performance', self.recommendations['good']),
+            ('basic', '🟠 Basic Performance', self.recommendations['basic'])
+        ]
+        
+        for category, title, models in categories:
+            if models:
+                html += f"<h3>{title}</h3>"
+                for model in models:
+                    html += self._generate_model_card_html(model, category)
+        
+        html += "</div>"
+        return html
+    
+    def _generate_model_card_html(self, model, category):
+        """Generate HTML for a single model card"""
+        model_name = model['name']
+        specs = model['specs']
+        compatibility = model['compatibility']
+        
+        domain_badge = ""
+        if 'domain' in specs:
+            domain_badge = f'<span class="model-domain">{specs["domain"]}</span>'
+        
+        performance_class = category
+        
+        card_html = f"""
+        <div class="model-card">
+            <div class="model-name">{model_name}{domain_badge}</div>
+            
+            <div class="performance-tier {performance_class}">
+                {compatibility['performance_tier']}
+            </div>
+            
+            <p style="margin: 15px 0; color: #555;">{specs['description']}</p>
+            
+            <div class="requirements">
+                <div class="req-item">
+                    <div class="req-label">Parameters</div>
+                    <div class="req-value">{specs['parameters']}</div>
+                </div>
+                <div class="req-item">
+                    <div class="req-label">Min RAM</div>
+                    <div class="req-value">{specs['min_ram_gb']} GB</div>
+                </div>
+                <div class="req-item">
+                    <div class="req-label">Rec. RAM</div>
+                    <div class="req-value">{specs['recommended_ram_gb']} GB</div>
+                </div>
+                <div class="req-item">
+                    <div class="req-label">Min VRAM</div>
+                    <div class="req-value">{specs['min_vram_gb']} GB</div>
+                </div>
+                <div class="req-item">
+                    <div class="req-label">Rec. VRAM</div>
+                    <div class="req-value">{specs['recommended_vram_gb']} GB</div>
+                </div>
+            </div>
+        """
+        
+        if compatibility['recommended_quant']:
+            card_html += f'<p><strong>Recommended Quantization:</strong> {compatibility["recommended_quant"]}</p>'
+        
+        if compatibility['notes']:
+            notes = '; '.join(compatibility['notes'])
+            card_html += f'<p><strong>Notes:</strong> {notes}</p>'
+        
+        card_html += "</div>"
+        return card_html
+    
+    def _get_insufficient_hardware_html(self):
+        """Generate HTML for insufficient hardware scenario"""
+        ram_gb = self.system_info['total_ram_gb']
+        storage_gb = self.system_info['free_storage_gb']
+        
+        return f"""
+        <div class="section">
+            <h2>❌ Insufficient Hardware Detected</h2>
+            
+            <div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3>Your Current System:</h3>
+                <ul style="margin: 10px 0 0 20px;">
+                    <li>RAM: {ram_gb} GB</li>
+                    <li>Free Storage: {storage_gb} GB</li>
+                    <li>GPUs: {len(self.system_info['gpus'])} detected</li>
+                </ul>
+                
+                <p style="margin-top: 15px;">
+                    Unfortunately, your system doesn't meet the minimum requirements 
+                    for running local LLMs efficiently.
+                </p>
+            </div>
+            
+            <h3>🌐 Recommended Cloud-Based Solutions:</h3>
+            <ul style="margin: 15px 0 0 20px; line-height: 1.8;">
+                <li><strong>ChatGPT:</strong> https://chat.openai.com</li>
+                <li><strong>Claude:</strong> https://claude.ai</li>
+                <li><strong>Google Bard:</strong> https://bard.google.com</li>
+                <li><strong>Perplexity AI:</strong> https://perplexity.ai</li>
+            </ul>
+        </div>
+        """
+    
+    def _get_footer(self):
+        """Generate HTML footer"""
+        return f"""
+        <div class="footer">
+            <p>Generated by LLM Hardware Compatibility Checker</p>
+            <p>Report created on {self.timestamp.strftime('%B %d, %Y at %I:%M:%S %p')}</p>
+        </div>
+        """
 
 
 def install_requirements():
     """Install required packages if missing"""
     required_packages = ['psutil']
-    optional_packages = ['GPUtil', 'nvidia-ml-py3']
+    optional_packages = ['GPUtil', 'nvidia-ml-py3', 'reportlab']
     
     missing_required = []
     for package in required_packages:
@@ -824,13 +1655,23 @@ def install_requirements():
     
     if missing_optional:
         print(f"⚠️  Optional packages not found: {missing_optional}")
-        print("For better GPU detection, install with: pip install " + " ".join(missing_optional))
+        print("For enhanced features, install with: pip install " + " ".join(missing_optional))
+        print("   • GPUtil/nvidia-ml-py3: Better GPU detection")
+        print("   • reportlab: PDF report generation")
     
     return True
 
 
 def main():
-    """Main function"""
+    """Main function with report generation options"""
+    parser = argparse.ArgumentParser(description='LLM Hardware Compatibility Checker')
+    parser.add_argument('--report', choices=['html', 'pdf', 'both'], 
+                       help='Generate report in specified format(s)')
+    parser.add_argument('--output-dir', default='.', 
+                       help='Directory to save reports (default: current directory)')
+    
+    args = parser.parse_args()
+    
     print("🚀 LLM Hardware Compatibility Checker & Installation Guide")
     print("="*60)
     
@@ -846,6 +1687,17 @@ def main():
     recommender = LLMRecommender(analyzer.system_info)
     recommendations = recommender.get_recommendations()
     recommender.print_recommendations()
+    
+    # Generate reports if requested
+    if args.report:
+        print(f"\n🔄 Generating {args.report} report(s)...")
+        report_results = recommender.generate_report(args.report, args.output_dir)
+        
+        print("\n📄 Report Generation Complete!")
+        if 'html' in report_results and report_results['html']:
+            print(f"   📄 HTML: {report_results['html']}")
+        if 'pdf' in report_results and report_results['pdf']:
+            print(f"   📄 PDF: {report_results['pdf']}")
     
     # Check if any models are suitable for final message
     suitable_models = recommendations['excellent'] + recommendations['good'] + recommendations['basic']
