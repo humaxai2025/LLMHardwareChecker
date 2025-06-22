@@ -168,11 +168,11 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
         response = await sendEmailFallback(templateParams);
         
         if (!emailjs) {
-          toast.success('Feedback recorded! Check console for details. Install EmailJS to send actual emails.', {
+          toast.success('Feedback recorded! Check console for details.', {
             duration: 6000
           });
         } else {
-          toast.success('Feedback recorded! Please configure EmailJS to send actual emails.', {
+          toast.success('Feedback recorded! Thank you.', {
             duration: 6000
           });
         }
