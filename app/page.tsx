@@ -39,6 +39,7 @@ interface AnalysisState {
 }
 
 export default function HomePage() {
+  const [isMounted, setIsMounted] = useState(false);
   const [state, setState] = useState<AnalysisState>({
     systemInfo: null,
     recommendations: null,
@@ -49,7 +50,23 @@ export default function HomePage() {
     analysisComplete: false,
   });
 
+  // Ensure we only run client-side code after mount
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const startAnalysis = async () => {
+    // Ensure we're in the browser
+    if (typeof window === 'undefined') {
+      setState(prev => ({ 
+        ...prev, 
+        error: 'Analysis must run in a browser environment',
+        isLoading: false,
+        isAnalyzing: false 
+      }));
+      return;
+    }
+
     setState(prev => ({ ...prev, isLoading: true, isAnalyzing: true, error: null }));
     
     try {
@@ -58,6 +75,7 @@ export default function HomePage() {
       // Simulate some delay for better UX
       await new Promise(resolve => setTimeout(resolve, 1000));
       
+      // This will now analyze the CLIENT's hardware, not the server's
       const systemInfo = await analyzeSystem();
       
       toast.loading('Generating recommendations...', { id: 'analysis' });
@@ -84,7 +102,7 @@ export default function HomePage() {
         ...prev,
         isLoading: false,
         isAnalyzing: false,
-        error: 'Failed to analyze system. Please try again.',
+        error: `Failed to analyze system: ${error instanceof Error ? error.message : 'Please ensure you\'re using a modern browser and try again.'}`,
       }));
       
       toast.error('Analysis failed. Please try again.', { id: 'analysis' });
@@ -164,7 +182,14 @@ export default function HomePage() {
                 Get personalized recommendations with detailed installation instructions.
               </p>
               
-              {!state.analysisComplete && (
+              {!state.analysisComplete && !isMounted && (
+                <div className="inline-flex items-center px-8 py-4 bg-gray-200 text-gray-600 font-semibold rounded-full">
+                  <LoadingSpinner className="mr-3" />
+                  Loading...
+                </div>
+              )}
+              
+              {!state.analysisComplete && isMounted && (
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
@@ -320,7 +345,7 @@ export default function HomePage() {
           </AnimatePresence>
 
           {/* Info Section */}
-          {!state.analysisComplete && !state.isAnalyzing && (
+          {!state.analysisComplete && !state.isAnalyzing && isMounted && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -383,7 +408,7 @@ export default function HomePage() {
         </main>
 
         {/* Floating Feedback Button */}
-        <FeedbackButton />
+        {isMounted && <FeedbackButton />}
       </div>
     </ErrorBoundary>
   );
