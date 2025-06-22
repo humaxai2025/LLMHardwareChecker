@@ -20,6 +20,7 @@ export interface LLMModel {
     ollama?: InstallMethod;
     huggingface?: InstallMethod;
     gguf?: InstallMethod;
+    lm_studio?: InstallMethod;
   };
 }
 
