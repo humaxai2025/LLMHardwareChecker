@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import {
   DocumentArrowDownIcon,
   DocumentTextIcon,
@@ -66,10 +68,10 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
 
   const generatePDFReport = async () => {
     setIsGenerating(true);
-    toast.loading('Generating high-quality PDF report...', { id: 'pdf-report' });
+    toast.loading('Generating PDF report...', { id: 'pdf-report' });
 
     try {
-      // Create PDF with proper formatting
+      // Create a proper PDF using jsPDF directly instead of html2canvas
       const { jsPDF } = await import('jspdf');
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -77,284 +79,218 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
         format: 'a4'
       });
 
-      // Define colors and fonts
-      const colors = {
-        primary: [59, 130, 246], // blue-500
-        secondary: [107, 114, 128], // gray-500
-        success: [16, 185, 129], // green-500
-        warning: [245, 158, 11], // yellow-500
-        danger: [239, 68, 68], // red-500
-        text: [31, 41, 55], // gray-800
-        lightGray: [249, 250, 251] // gray-50
-      };
+      // PDF styling
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+      let yPosition = margin;
 
-      let yPosition = 20;
-      const pageWidth = 210; // A4 width in mm
-      const marginLeft = 20;
-      const marginRight = 20;
-      const contentWidth = pageWidth - marginLeft - marginRight;
-
-      // Helper functions
-      const addText = (text: string, x: number, y: number, options: any = {}) => {
-        const fontSize = options.fontSize || 10;
-        const fontStyle = options.fontStyle || 'normal';
-        const align = options.align || 'left';
-        const color = options.color || colors.text;
-        
+      // Helper function to add text with proper wrapping
+      const addText = (text: string, fontSize = 10, isBold = false) => {
         pdf.setFontSize(fontSize);
-        pdf.setFont('helvetica', fontStyle);
-        pdf.setTextColor(color[0], color[1], color[2]);
-        pdf.text(text, x, y, { align });
-        return y + (fontSize * 0.35) + (options.spacing || 2);
-      };
-
-      const addHeading = (text: string, level: number = 1) => {
-        const fontSize = level === 1 ? 18 : level === 2 ? 14 : 12;
-        const spacing = level === 1 ? 8 : 6;
-        yPosition = addText(text, marginLeft, yPosition, {
-          fontSize,
-          fontStyle: 'bold',
-          color: colors.primary,
-          spacing
-        });
+        pdf.setFont('helvetica', isBold ? 'bold' : 'normal');
+        const lines = pdf.splitTextToSize(text, contentWidth);
+        
+        // Check if we need a new page
+        if (yPosition + (lines.length * fontSize * 0.5) > pageHeight - margin) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+        
+        pdf.text(lines, margin, yPosition);
+        yPosition += lines.length * fontSize * 0.5 + 5;
         return yPosition;
       };
 
+      // Helper function to add a line
       const addLine = () => {
-        pdf.setDrawColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
-        pdf.setLineWidth(0.2);
-        pdf.line(marginLeft, yPosition, pageWidth - marginRight, yPosition);
-        yPosition += 5;
-      };
-
-      const checkPageBreak = (spaceNeeded: number = 20) => {
-        if (yPosition + spaceNeeded > 280) { // Near bottom of A4
+        if (yPosition > pageHeight - margin - 10) {
           pdf.addPage();
-          yPosition = 20;
+          yPosition = margin;
         }
-      };
-
-      const addSection = (title: string, content: string[]) => {
-        checkPageBreak(30);
-        addHeading(title, 2);
-        addLine();
-        
-        content.forEach(line => {
-          checkPageBreak();
-          if (line.startsWith('•')) {
-            yPosition = addText(line, marginLeft + 5, yPosition);
-          } else if (line.startsWith('  -')) {
-            yPosition = addText(line, marginLeft + 10, yPosition, { fontSize: 9 });
-          } else {
-            yPosition = addText(line, marginLeft, yPosition);
-          }
-        });
+        pdf.setDrawColor(200, 200, 200);
+        pdf.line(margin, yPosition, pageWidth - margin, yPosition);
         yPosition += 5;
       };
 
-      // Title Page
-      pdf.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
-      pdf.rect(0, 0, pageWidth, 60, 'F');
+      // Title
+      pdf.setFillColor(59, 130, 246); // Blue background
+      pdf.rect(0, 0, pageWidth, 40, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(24);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('LLM Hardware Compatibility Report', margin, 25);
       
-      yPosition = addText('🤖 LLM Hardware Compatibility Report', pageWidth/2, 25, {
-        fontSize: 20,
-        fontStyle: 'bold',
-        color: [255, 255, 255],
-        align: 'center'
-      });
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, margin, 35);
       
-      yPosition = addText(`Generated on ${new Date().toLocaleDateString()}`, pageWidth/2, yPosition + 5, {
-        fontSize: 12,
-        color: [255, 255, 255],
-        align: 'center'
-      });
+      yPosition = 50;
+      pdf.setTextColor(0, 0, 0);
 
-      yPosition = 80;
-
-      // System Specifications
-      addHeading('System Specifications');
+      // System Specifications Section
+      addText('SYSTEM SPECIFICATIONS', 16, true);
       addLine();
       
-      const systemSpecs = [
-        `Operating System: ${systemInfo.os} (${systemInfo.architecture})`,
-        `Processor: ${systemInfo.processor}`,
-        `CPU Cores: ${systemInfo.cpuCores}`,
-        `Memory (RAM): ${systemInfo.totalRamGB} GB total (${systemInfo.availableRamGB} GB available)`,
-        `Storage: ${systemInfo.freeStorageGB} GB free / ${systemInfo.totalStorageGB} GB total`,
-      ];
-
+      addText(`Operating System: ${systemInfo.os} (${systemInfo.architecture})`, 12);
+      addText(`Processor: ${systemInfo.processor}`, 12);
+      addText(`CPU Cores: ${systemInfo.cpuCores} cores`, 12);
+      addText(`Memory (RAM): ${systemInfo.totalRamGB} GB total (${systemInfo.availableRamGB} GB available)`, 12);
+      addText(`Storage: ${systemInfo.freeStorageGB} GB free / ${systemInfo.totalStorageGB} GB total`, 12);
+      
       if (systemInfo.gpus && systemInfo.gpus.length > 0) {
         systemInfo.gpus.forEach((gpu, index) => {
           const vramInfo = typeof gpu.vramGB === 'number' ? `${gpu.vramGB} GB VRAM` : gpu.vramGB;
-          systemSpecs.push(`GPU ${index + 1}: ${gpu.name} (${vramInfo})`);
+          addText(`GPU ${index + 1}: ${gpu.name} (${vramInfo})`, 12);
         });
       } else {
-        systemSpecs.push('GPU: None detected');
+        addText('GPU: None detected', 12);
       }
-
-      systemSpecs.forEach(spec => {
-        checkPageBreak();
-        yPosition = addText(`• ${spec}`, marginLeft, yPosition);
-      });
 
       yPosition += 10;
 
-      // Compatibility Summary
+      // Compatibility Results Section
       const suitableModels = [
         ...recommendations.excellent,
         ...recommendations.good,
         ...recommendations.basic
       ];
 
-      addHeading('Compatibility Summary');
+      addText('COMPATIBILITY RESULTS', 16, true);
       addLine();
-
-      const summaryStats = [
-        `Compatible Models: ${suitableModels.length}`,
-        `Excellent Performance: ${recommendations.excellent.length}`,
-        `Good Performance: ${recommendations.good.length}`,
-        `Basic Performance: ${recommendations.basic.length}`,
-        `Not Suitable: ${recommendations.not_suitable.length}`
-      ];
-
-      summaryStats.forEach(stat => {
-        checkPageBreak();
-        yPosition = addText(`• ${stat}`, marginLeft, yPosition);
-      });
+      
+      addText(`Compatible Models: ${suitableModels.length}`, 12);
+      addText(`Excellent Performance: ${recommendations.excellent.length}`, 12);
+      addText(`Good Performance: ${recommendations.good.length}`, 12);
+      addText(`Basic Performance: ${recommendations.basic.length}`, 12);
+      addText(`Not Suitable: ${recommendations.not_suitable.length}`, 12);
 
       yPosition += 10;
 
-      // Model Recommendations
+      // Recommended Models Section
       if (suitableModels.length > 0) {
+        addText('RECOMMENDED MODELS', 16, true);
+        addLine();
+
         const categories = [
-          { name: 'Excellent Performance', models: recommendations.excellent, color: colors.success },
-          { name: 'Good Performance', models: recommendations.good, color: colors.warning },
-          { name: 'Basic Performance', models: recommendations.basic, color: colors.danger }
+          { title: 'EXCELLENT PERFORMANCE', models: recommendations.excellent, emoji: '🟢' },
+          { title: 'GOOD PERFORMANCE', models: recommendations.good, emoji: '🟡' },
+          { title: 'BASIC PERFORMANCE', models: recommendations.basic, emoji: '🟠' }
         ];
 
         categories.forEach(category => {
           if (category.models.length > 0) {
-            checkPageBreak(40);
-            yPosition = addText(category.name, marginLeft, yPosition, {
-              fontSize: 14,
-              fontStyle: 'bold',
-              color: category.color
-            });
-            addLine();
-
-            category.models.slice(0, 5).forEach(model => { // Limit to 5 models per category for space
-              checkPageBreak(25);
+            addText(`${category.emoji} ${category.title}`, 14, true);
+            
+            category.models.slice(0, 5).forEach((model, index) => {
+              addText(`${index + 1}. ${model.name}`, 12, true);
+              addText(`   Parameters: ${model.specs.parameters}`, 10);
+              addText(`   Description: ${model.specs.description}`, 10);
+              addText(`   RAM Required: ${model.specs.min_ram_gb}-${model.specs.recommended_ram_gb} GB`, 10);
+              addText(`   VRAM Required: ${model.specs.min_vram_gb}-${model.specs.recommended_vram_gb} GB`, 10);
+              addText(`   Performance: ${model.compatibility.performance_tier}`, 10);
               
-              // Model name
-              yPosition = addText(model.name, marginLeft, yPosition, {
-                fontSize: 12,
-                fontStyle: 'bold'
-              });
-
-              // Model details
-              const details = [
-                `  Parameters: ${model.specs.parameters}`,
-                `  RAM Required: ${model.specs.min_ram_gb}-${model.specs.recommended_ram_gb} GB`,
-                `  VRAM Required: ${model.specs.min_vram_gb}-${model.specs.recommended_vram_gb} GB`,
-                `  Description: ${model.specs.description}`
-              ];
-
-              if (model.specs.domain) {
-                details.push(`  Domain: ${model.specs.domain}`);
-              }
-
               // Installation command
               if (model.specs.install_methods.ollama) {
-                details.push(`  Quick Install: ${model.specs.install_methods.ollama.command}`);
+                addText(`   Quick Install: ${model.specs.install_methods.ollama.command}`, 10);
               }
-
-              details.forEach(detail => {
-                checkPageBreak();
-                yPosition = addText(detail, marginLeft, yPosition, { fontSize: 9 });
-              });
-
-              yPosition += 3;
+              
+              if (model.compatibility.recommended_quant) {
+                addText(`   Recommended Quantization: ${model.compatibility.recommended_quant}`, 10);
+              }
+              
+              yPosition += 5;
             });
-
+            
             if (category.models.length > 5) {
-              yPosition = addText(`... and ${category.models.length - 5} more models`, marginLeft, yPosition, {
-                fontSize: 9,
-                color: colors.secondary
-              });
+              addText(`   ... and ${category.models.length - 5} more models`, 10);
             }
-
+            
             yPosition += 5;
           }
         });
       } else {
-        // Insufficient hardware section
-        addSection('Insufficient Hardware Detected', [
-          'Your system does not meet the minimum requirements for running local LLMs efficiently.',
-          '',
-          'Recommended cloud-based solutions:',
-          '• ChatGPT: https://chat.openai.com',
-          '• Claude: https://claude.ai',
-          '• Google Bard: https://bard.google.com',
-          '• Perplexity AI: https://perplexity.ai'
-        ]);
+        // Insufficient Hardware Section
+        addText('INSUFFICIENT HARDWARE DETECTED', 16, true);
+        addLine();
+        
+        addText('Your system does not meet the minimum requirements for running local LLMs efficiently.', 12);
+        addText('', 12);
+        addText('RECOMMENDED CLOUD-BASED SOLUTIONS:', 14, true);
+        addText('• ChatGPT: https://chat.openai.com', 12);
+        addText('• Claude: https://claude.ai', 12);
+        addText('• Google Bard: https://bard.google.com', 12);
+        addText('• Perplexity AI: https://perplexity.ai', 12);
       }
 
-      // Installation Platforms
-      checkPageBreak(50);
-      addHeading('Installation Platforms');
+      // Installation Platforms Section
+      if (yPosition < pageHeight - 60) {
+        yPosition += 10;
+        addText('INSTALLATION PLATFORMS', 16, true);
+        addLine();
+        
+        addText('1. OLLAMA (Recommended for Beginners)', 12, true);
+        addText('   • Download from: https://ollama.ai', 11);
+        addText('   • Easy installation, automatic model management', 11);
+        addText('   • Usage: ollama run [model-name]', 11);
+        addText('', 11);
+        
+        addText('2. LM STUDIO (GUI Option)', 12, true);
+        addText('   • Download from: https://lmstudio.ai', 11);
+        addText('   • User-friendly graphical interface', 11);
+        addText('   • No command line needed', 11);
+        addText('', 11);
+        
+        addText('3. LLAMA.CPP (Advanced Users)', 12, true);
+        addText('   • Best for CPU optimization', 11);
+        addText('   • Requires technical knowledge', 11);
+        addText('   • Download GGUF models manually', 11);
+      }
+
+      // System Capability Level
+      const capabilityLevel = recommender.getSystemCapabilityLevel();
+      const levelLabels = {
+        low: 'Entry Level',
+        medium: 'Mid Range', 
+        high: 'High End',
+        premium: 'Premium'
+      };
+
+      // Add new page for optimization tips
+      pdf.addPage();
+      yPosition = margin;
+      
+      addText('OPTIMIZATION TIPS FOR YOUR SYSTEM', 16, true);
       addLine();
+      
+      addText(`System Capability Level: ${levelLabels[capabilityLevel] || 'Unknown'}`, 14, true);
+      yPosition += 5;
 
-      const platforms = recommender.getInstallationPlatforms();
-      platforms.forEach(platform => {
-        checkPageBreak(20);
-        yPosition = addText(platform.name, marginLeft, yPosition, {
-          fontSize: 12,
-          fontStyle: 'bold'
-        });
-        yPosition = addText(`  ${platform.description}`, marginLeft, yPosition, { fontSize: 9 });
-        yPosition = addText(`  Best for: ${platform.bestFor}`, marginLeft, yPosition, { fontSize: 9 });
-        yPosition += 2;
-      });
-
-      // Optimization Tips
-      checkPageBreak(50);
-      addHeading('Optimization Tips');
-      addLine();
-
+      // Get and add optimization tips
       const tips = recommender.getOptimizationTips();
-      tips.slice(0, 10).forEach(tip => { // Limit tips for space
-        checkPageBreak();
-        yPosition = addText(`• ${tip.replace(/^[🔧💾🎮💻🍎🐧🪟📱⚡🗑️❌✅🚀💡⚙️🔋☁️📁]+\s*/, '')}`, marginLeft, yPosition, { fontSize: 9 });
+      tips.slice(0, 10).forEach((tip, index) => {
+        // Remove emoji and format tip
+        const cleanTip = tip.replace(/^[🔧💾🎮💻🍎🐧🪟📱⚡🗑️❌✅🚀💡⚙️🔋☁️📁]+\s*/, '');
+        addText(`• ${cleanTip}`, 11);
       });
 
       // Footer
-      checkPageBreak(30);
-      yPosition = Math.max(yPosition + 20, 250);
-      pdf.setDrawColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
-      pdf.setLineWidth(0.5);
-      pdf.line(marginLeft, yPosition, pageWidth - marginRight, yPosition);
-      yPosition += 10;
-      
-      yPosition = addText('Generated by LLM Hardware Compatibility Checker', pageWidth/2, yPosition, {
-        fontSize: 10,
-        align: 'center',
-        color: colors.secondary
-      });
-      
-      yPosition = addText(`Report created on ${new Date().toLocaleString()}`, pageWidth/2, yPosition, {
-        fontSize: 8,
-        align: 'center',
-        color: colors.secondary
-      });
+      pdf.setFontSize(8);
+      pdf.setTextColor(128, 128, 128);
+      const footerY = pageHeight - 10;
+      pdf.text('Generated by LLM Hardware Compatibility Checker', margin, footerY);
+      pdf.text(`Report created on ${new Date().toLocaleString()}`, pageWidth - margin - 60, footerY);
 
       // Save the PDF
       pdf.save(`llm-compatibility-report-${new Date().toISOString().split('T')[0]}.pdf`);
 
       setGeneratedReports(prev => ({ ...prev, pdf: true }));
-      toast.success('High-quality PDF report downloaded!', { id: 'pdf-report' });
+      toast.success('PDF report downloaded!', { id: 'pdf-report' });
+
     } catch (error) {
       console.error('Failed to generate PDF report:', error);
-      toast.error('Failed to generate PDF report. Please try again.', { id: 'pdf-report' });
+      toast.error('Failed to generate PDF report. Try HTML format instead.', { id: 'pdf-report' });
     } finally {
       setIsGenerating(false);
     }
@@ -478,7 +414,7 @@ For detailed installation instructions and optimization tips, download the full 
                     <DocumentArrowDownIcon className="h-6 w-6 text-red-600 mr-3" />
                     <div>
                       <h4 className="font-semibold text-gray-900">PDF Report</h4>
-                      <p className="text-sm text-gray-600">High-quality document with selectable text</p>
+                      <p className="text-sm text-gray-600">Printable document format</p>
                     </div>
                   </div>
                   {generatedReports.pdf && (
@@ -488,10 +424,7 @@ For detailed installation instructions and optimization tips, download the full 
                 
                 <div className="flex flex-wrap gap-2 mb-3">
                   <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-medium">
-                    High Quality
-                  </span>
-                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
-                    Selectable Text
+                    Printable
                   </span>
                   <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-medium">
                     Shareable
