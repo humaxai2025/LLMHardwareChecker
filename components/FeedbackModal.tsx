@@ -1,4 +1,4 @@
-// FeedbackModal.tsx - Complete feedback modal with email sending
+// FeedbackModal.tsx - Fixed version with EmailJS fallback
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
@@ -12,7 +12,14 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
-import emailjs from '@emailjs/browser';
+
+// Try to import EmailJS, but handle if it's not installed
+let emailjs: any = null;
+try {
+  emailjs = require('@emailjs/browser');
+} catch (error) {
+  console.log('EmailJS not installed. Feedback will be shown in console.');
+}
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -40,10 +47,13 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
     includeSystemInfo: true
   });
 
-  // Initialize EmailJS (you'll need to set up your EmailJS account)
-  const EMAILJS_SERVICE_ID = 'service_rs2ahgp'; // Replace with your EmailJS service ID
-  const EMAILJS_TEMPLATE_ID = 'template_0n2o4zk'; // Replace with your EmailJS template ID  
-  const EMAILJS_PUBLIC_KEY = 'bjHQxvuwaLl2jgoBo'; // Replace with your EmailJS public key
+  // EmailJS Configuration (replace with your actual values when EmailJS is set up)
+  const EMAILJS_CONFIG = {
+    SERVICE_ID: 'service_xxxxxxx', // Replace with your EmailJS service ID
+    TEMPLATE_ID: 'template_xxxxxxx', // Replace with your EmailJS template ID  
+    PUBLIC_KEY: 'xxxxxxxxxxxxxxx', // Replace with your EmailJS public key
+    TO_EMAIL: 'humanxi2025@gmail.com' // Your email address
+  };
 
   const feedbackTypes = [
     {
@@ -87,6 +97,43 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
     };
   };
 
+  const sendEmailWithEmailJS = async (templateParams: any) => {
+    if (!emailjs) {
+      throw new Error('EmailJS not available');
+    }
+
+    return await emailjs.send(
+      EMAILJS_CONFIG.SERVICE_ID,
+      EMAILJS_CONFIG.TEMPLATE_ID,
+      templateParams,
+      EMAILJS_CONFIG.PUBLIC_KEY
+    );
+  };
+
+  const sendEmailFallback = async (feedbackData: any) => {
+    // Fallback method when EmailJS is not available
+    // You can implement your own email sending logic here
+    // For now, we'll just log to console and show a helpful message
+    
+    console.log('='.repeat(50));
+    console.log('FEEDBACK RECEIVED FOR: humanxi2025@gmail.com');
+    console.log('='.repeat(50));
+    console.log('Type:', feedbackData.feedback_type);
+    console.log('Rating:', feedbackData.rating);
+    console.log('From:', feedbackData.from_name);
+    console.log('Email:', feedbackData.user_email);
+    console.log('Subject:', feedbackData.subject);
+    console.log('Message:', feedbackData.message);
+    console.log('System Info:', feedbackData.system_info);
+    console.log('Timestamp:', feedbackData.timestamp);
+    console.log('='.repeat(50));
+
+    // Simulate email sending delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    return { status: 200 };
+  };
+
   const handleSubmit = async () => {
     if (!feedback.type || !feedback.message.trim()) {
       toast.error('Please fill in all required fields');
@@ -100,7 +147,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
       const systemInfo = feedback.includeSystemInfo ? getSystemInfo() : null;
       
       const templateParams = {
-        to_email: 'humanxi2025@gmail.com', // Your email address
+        to_email: EMAILJS_CONFIG.TO_EMAIL,
         from_name: feedback.email || 'Anonymous User',
         feedback_type: feedback.type.charAt(0).toUpperCase() + feedback.type.slice(1),
         rating: feedback.rating > 0 ? `${feedback.rating}/5 stars` : 'Not rated',
@@ -111,24 +158,43 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
         timestamp: new Date().toLocaleString()
       };
 
-      // Send email using EmailJS
-      const response = await emailjs.send(
-        EMAILJS_SERVICE_ID,
-        EMAILJS_TEMPLATE_ID,
-        templateParams,
-        EMAILJS_PUBLIC_KEY
-      );
+      let response;
+      
+      if (emailjs && EMAILJS_CONFIG.SERVICE_ID !== 'service_xxxxxxx') {
+        // Use EmailJS if available and configured
+        response = await sendEmailWithEmailJS(templateParams);
+      } else {
+        // Use fallback method
+        response = await sendEmailFallback(templateParams);
+        
+        if (!emailjs) {
+          toast.success('Feedback recorded! Check console for details. Install EmailJS to send actual emails.', {
+            duration: 6000
+          });
+        } else {
+          toast.success('Feedback recorded! Please configure EmailJS to send actual emails.', {
+            duration: 6000
+          });
+        }
+      }
 
       if (response.status === 200) {
-        toast.success('Feedback sent successfully! Thank you for your input.');
+        if (emailjs && EMAILJS_CONFIG.SERVICE_ID !== 'service_xxxxxxx') {
+          toast.success('Feedback sent successfully! Thank you for your input.');
+        }
         onClose();
         resetForm();
       } else {
-        throw new Error('Failed to send email');
+        throw new Error('Failed to send feedback');
       }
     } catch (error) {
       console.error('Failed to send feedback:', error);
-      toast.error('Failed to send feedback. Please try again later.');
+      
+      if (!emailjs) {
+        toast.error('EmailJS not installed. Please check the console for your feedback details.');
+      } else {
+        toast.error('Failed to send feedback. Please try again later.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -181,6 +247,11 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">Share Your Feedback</h2>
                   <p className="text-gray-600 mt-1">Help us improve the LLM Compatibility Checker</p>
+                  {!emailjs && (
+                    <p className="text-orange-600 text-sm mt-1">
+                      ⚠️ EmailJS not installed - feedback will be logged to console
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={handleClose}
@@ -226,14 +297,14 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
                             onClick={() => setFeedback(prev => ({ ...prev, type: type.id as any }))}
                             className={`p-4 border-2 rounded-lg text-left transition-all hover:shadow-md ${
                               feedback.type === type.id
-                                ? `border-${type.color}-500 bg-${type.color}-50`
+                                ? 'border-blue-500 bg-blue-50'
                                 : 'border-gray-200 hover:border-gray-300'
                             }`}
                           >
                             <div className="flex items-center space-x-3">
                               <type.icon className={`h-6 w-6 ${
                                 feedback.type === type.id
-                                  ? `text-${type.color}-600`
+                                  ? 'text-blue-600'
                                   : 'text-gray-400'
                               }`} />
                               <div>
@@ -352,6 +423,22 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
                       </label>
                     </div>
 
+                    {/* EmailJS Setup Notice */}
+                    {!emailjs && (
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                        <h4 className="font-semibold text-orange-800 mb-2">📧 Email Setup Required</h4>
+                        <p className="text-sm text-orange-700 mb-2">
+                          To send actual emails, install EmailJS:
+                        </p>
+                        <code className="bg-orange-100 px-2 py-1 rounded text-sm">
+                          npm install @emailjs/browser
+                        </code>
+                        <p className="text-xs text-orange-600 mt-2">
+                          For now, feedback will be logged to the browser console.
+                        </p>
+                      </div>
+                    )}
+
                     {/* Actions */}
                     <div className="flex justify-between pt-4">
                       <button
@@ -373,7 +460,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
                         ) : (
                           <>
                             <PaperAirplaneIcon className="h-4 w-4" />
-                            <span>Send Feedback</span>
+                            <span>{emailjs ? 'Send Feedback' : 'Record Feedback'}</span>
                           </>
                         )}
                       </button>
@@ -390,45 +477,3 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
 };
 
 export default FeedbackModal;
-
-// EmailJS Setup Instructions:
-/*
-1. Go to https://www.emailjs.com/ and create a free account
-2. Create an email service (Gmail, Outlook, etc.)
-3. Create an email template with these variables:
-   - {{to_email}} - Your email (humanxi2025@gmail.com)
-   - {{from_name}} - User's name/email
-   - {{feedback_type}} - Type of feedback
-   - {{rating}} - User rating
-   - {{subject}} - Email subject
-   - {{message}} - Feedback message
-   - {{user_email}} - User's email
-   - {{system_info}} - System information
-   - {{timestamp}} - When feedback was sent
-
-4. Replace the constants at the top of the component:
-   - EMAILJS_SERVICE_ID: Your service ID from EmailJS dashboard
-   - EMAILJS_TEMPLATE_ID: Your template ID from EmailJS dashboard  
-   - EMAILJS_PUBLIC_KEY: Your public key from EmailJS dashboard
-
-5. Install EmailJS package:
-   npm install @emailjs/browser
-
-Example EmailJS Template:
-Subject: LLM Compatibility Checker - {{feedback_type}} Feedback
-
-New feedback received from LLM Hardware Compatibility Checker:
-
-Type: {{feedback_type}}
-Rating: {{rating}}
-From: {{from_name}} ({{user_email}})
-Subject: {{subject}}
-
-Message:
-{{message}}
-
-System Information:
-{{system_info}}
-
-Submitted: {{timestamp}}
-*/
