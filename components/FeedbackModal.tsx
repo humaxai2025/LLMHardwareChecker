@@ -86,6 +86,14 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
     }
   ];
 
+  // Check if EmailJS is properly configured
+  const isEmailJSConfigured = () => {
+    return emailjs && 
+           EMAILJS_CONFIG.SERVICE_ID !== 'service_xxxxxxx' && 
+           EMAILJS_CONFIG.TEMPLATE_ID !== 'template_xxxxxxx' && 
+           EMAILJS_CONFIG.PUBLIC_KEY !== 'xxxxxxxxxxxxxxx';
+  };
+
   const getSystemInfo = () => {
     return {
       userAgent: navigator.userAgent,
