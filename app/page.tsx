@@ -27,6 +27,7 @@ import OptimizationTips from '../components/OptimizationTips';
 import ReportDownload from '../components/ReportDownload';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackButton from '../components/FeedbackButton';
+import ManualHardwareInput from '../components/ManualHardwareInput';
 
 interface AnalysisState {
   systemInfo: SystemInfo | null;
@@ -36,6 +37,8 @@ interface AnalysisState {
   isAnalyzing: boolean;
   error: string | null;
   analysisComplete: boolean;
+  showManualInput: boolean;
+  browserDetected: Partial<SystemInfo> | null;
 }
 
 export default function HomePage() {
@@ -48,6 +51,8 @@ export default function HomePage() {
     isAnalyzing: false,
     error: null,
     analysisComplete: false,
+    showManualInput: false,
+    browserDetected: null,
   });
 
   // Ensure we only run client-side code after mount
@@ -55,49 +60,86 @@ export default function HomePage() {
     setIsMounted(true);
   }, []);
 
-  const startAnalysis = async () => {
-    // Multiple checks to ensure we're in browser
-    if (typeof window === 'undefined' || typeof document === 'undefined' || typeof navigator === 'undefined') {
-      setState(prev => ({ 
-        ...prev, 
-        error: 'Analysis must run in a browser environment. Please ensure JavaScript is enabled.',
-        isLoading: false,
-        isAnalyzing: false 
-      }));
-      return;
+  const detectBrowserCapabilities = async () => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+      return null;
     }
 
-    // Check if we have basic browser APIs
-    if (!navigator.userAgent || !navigator.hardwareConcurrency) {
-      setState(prev => ({ 
-        ...prev, 
-        error: 'Browser does not support hardware detection APIs.',
-        isLoading: false,
-        isAnalyzing: false 
-      }));
-      return;
-    }
+    try {
+      const browserDetected: Partial<SystemInfo> = {
+        os: navigator.platform.includes('Win') ? 'Windows' :
+            navigator.platform.includes('Mac') ? 'macOS' :
+            navigator.platform.includes('Linux') ? 'Linux' : 'Unknown',
+        architecture: navigator.platform,
+        cpuCores: navigator.hardwareConcurrency || 4,
+        userAgent: navigator.userAgent,
+        screenResolution: `${screen.width}x${screen.height}`,
+        colorDepth: screen.colorDepth,
+        language: navigator.language,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      };
 
+      // Try to detect GPU
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') as WebGLRenderingContext | null;
+      if (gl) {
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        if (debugInfo) {
+          const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) as string;
+          browserDetected.gpus = [{
+            name: renderer,
+            vramGB: 'Unknown',
+            type: 'Detected via WebGL'
+          }];
+        }
+      }
+
+      return browserDetected;
+    } catch (error) {
+      console.error('Browser detection failed:', error);
+      return null;
+    }
+  };
+
+  const startAutomaticAnalysis = async () => {
     setState(prev => ({ ...prev, isLoading: true, isAnalyzing: true, error: null }));
     
     try {
-      toast.loading('Analyzing your browser client hardware...', { id: 'analysis' });
+      toast.loading('Detecting browser capabilities...', { id: 'analysis' });
       
-      // Add delay for better UX
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const browserDetected = await detectBrowserCapabilities();
       
-      // This will now ONLY analyze the CLIENT's hardware using dynamic import
-      console.log('🔍 Starting client-side hardware analysis...');
-      console.log('User Agent:', navigator.userAgent);
-      console.log('Platform:', navigator.platform);
-      console.log('CPU Cores:', navigator.hardwareConcurrency);
+      // Show limitation warning
+      setState(prev => ({ 
+        ...prev, 
+        browserDetected,
+        showManualInput: true,
+        isLoading: false,
+        isAnalyzing: false 
+      }));
       
-      const systemInfo = await analyzeClientSystem();
+      toast.dismiss('analysis');
       
-      console.log('✅ Client hardware analysis complete:', systemInfo);
+    } catch (error) {
+      console.error('Browser detection failed:', error);
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        isAnalyzing: false,
+        error: 'Failed to detect browser capabilities.',
+      }));
       
-      toast.loading('Generating recommendations based on your hardware...', { id: 'analysis' });
-      await new Promise(resolve => setTimeout(resolve, 500));
+      toast.error('Detection failed. Please try manual input.', { id: 'analysis' });
+    }
+  };
+
+  const handleManualInput = async (systemInfo: SystemInfo) => {
+    setState(prev => ({ ...prev, isLoading: true, isAnalyzing: true, error: null }));
+    
+    try {
+      toast.loading('Generating recommendations for your system...', { id: 'analysis' });
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       const recommender = new LLMRecommender(systemInfo);
       const recommendations = recommender.getRecommendations();
@@ -110,20 +152,22 @@ export default function HomePage() {
         isAnalyzing: false,
         error: null,
         analysisComplete: true,
+        showManualInput: false,
+        browserDetected: null,
       });
       
-      toast.success('Your hardware analysis is complete!', { id: 'analysis' });
+      toast.success('Analysis complete with your hardware specs!', { id: 'analysis' });
       
     } catch (error) {
-      console.error('❌ Client-side analysis failed:', error);
+      console.error('Analysis failed:', error);
       setState(prev => ({
         ...prev,
         isLoading: false,
         isAnalyzing: false,
-        error: `Failed to analyze your system: ${error instanceof Error ? error.message : 'Please ensure you\'re using a modern browser and JavaScript is enabled.'}`,
+        error: `Failed to analyze system: ${error instanceof Error ? error.message : 'Unknown error'}`,
       }));
       
-      toast.error('Analysis failed. Please ensure you\'re using a modern browser.', { id: 'analysis' });
+      toast.error('Analysis failed. Please try again.', { id: 'analysis' });
     }
   };
 
@@ -136,6 +180,8 @@ export default function HomePage() {
       isAnalyzing: false,
       error: null,
       analysisComplete: false,
+      showManualInput: false,
+      browserDetected: null,
     });
   };
 
@@ -207,18 +253,18 @@ export default function HomePage() {
                 </div>
               )}
               
-              {!state.analysisComplete && isMounted && (
+              {!state.analysisComplete && isMounted && !state.showManualInput && (
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={startAnalysis}
+                  onClick={startAutomaticAnalysis}
                   disabled={state.isLoading}
                   className="inline-flex items-center px-8 py-4 bg-white text-blue-600 font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {state.isLoading ? (
                     <>
                       <LoadingSpinner className="mr-3" />
-                      Analyzing System...
+                      Detecting Capabilities...
                     </>
                   ) : (
                     <>
@@ -248,13 +294,62 @@ export default function HomePage() {
                     <h3 className="text-lg font-medium text-red-800 mb-2">Analysis Failed</h3>
                     <p className="text-red-700 mb-4">{state.error}</p>
                     <button
-                      onClick={startAnalysis}
+                      onClick={startAutomaticAnalysis}
                       className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
                     >
                       Try Again
                     </button>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {/* Browser Limitation Warning & Manual Input */}
+            {state.showManualInput && state.browserDetected && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="mb-8"
+              >
+                {/* Browser Limitation Explanation */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
+                  <div className="flex">
+                    <ExclamationTriangleIcon className="h-6 w-6 text-yellow-400 mr-3 flex-shrink-0" />
+                    <div>
+                      <h3 className="text-lg font-medium text-yellow-800 mb-2">Browser Security Limitations Detected</h3>
+                      <p className="text-yellow-700 mb-4">
+                        For security reasons, browsers cannot access detailed hardware information like your actual RAM amount or processor model. 
+                        <strong> This is why you see limited/incorrect specs below.</strong>
+                      </p>
+                      
+                      <div className="bg-yellow-100 rounded-lg p-4 mb-4">
+                        <h4 className="font-medium text-yellow-800 mb-2">What your browser detected:</h4>
+                        <div className="text-sm text-yellow-700 space-y-1">
+                          <div>• OS: {state.browserDetected.os}</div>
+                          <div>• CPU Threads: {state.browserDetected.cpuCores}</div>
+                          <div>• Platform: {state.browserDetected.architecture}</div>
+                          {state.browserDetected.gpus && state.browserDetected.gpus.length > 0 && (
+                            <div>• GPU: {state.browserDetected.gpus[0].name}</div>
+                          )}
+                        </div>
+                        <p className="text-xs text-yellow-600 mt-2 font-medium">
+                          ⚠️ This is likely NOT your actual hardware specs!
+                        </p>
+                      </div>
+                      
+                      <p className="text-yellow-700">
+                        Please enter your <strong>actual hardware specifications</strong> below for accurate LLM recommendations.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Manual Input Component */}
+                <ManualHardwareInput 
+                  onComplete={handleManualInput}
+                  browserDetected={state.browserDetected}
+                />
               </motion.div>
             )}
 
@@ -309,6 +404,12 @@ export default function HomePage() {
                           <p className="text-green-100">Your system has been analyzed successfully</p>
                         </div>
                       </div>
+                      <button
+                        onClick={restartAnalysis}
+                        className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors mr-3"
+                      >
+                        Edit Hardware Specs
+                      </button>
                       <button
                         onClick={restartAnalysis}
                         className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors"
@@ -374,7 +475,7 @@ export default function HomePage() {
           </AnimatePresence>
 
           {/* Info Section */}
-          {!state.analysisComplete && !state.isAnalyzing && isMounted && (
+          {!state.analysisComplete && !state.isAnalyzing && !state.showManualInput && isMounted && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -387,18 +488,18 @@ export default function HomePage() {
                   <h3 className="text-xl font-semibold text-gray-800">System Analysis</h3>
                 </div>
                 <p className="text-gray-600">
-                  We detect your hardware specifications including CPU, RAM, GPU, and storage 
-                  to determine compatibility with various LLM models.
+                  We'll detect what we can from your browser, then ask you to confirm your actual hardware 
+                  specifications for precise LLM compatibility analysis.
                 </p>
               </div>
               
               <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
                 <div className="flex items-center mb-4">
                   <CpuChipIcon className="h-8 w-8 text-purple-500 mr-3" />
-                  <h3 className="text-xl font-semibold text-gray-800">Smart Recommendations</h3>
+                  <h3 className="text-xl font-semibold text-gray-800">Accurate Recommendations</h3>
                 </div>
                 <p className="text-gray-600">
-                  Get personalized model recommendations based on your system's capabilities,
+                  Get personalized model recommendations based on your <strong>actual</strong> system capabilities,
                   from lightweight 2B models to powerful 70B+ models.
                 </p>
               </div>
@@ -426,14 +527,20 @@ export default function HomePage() {
             <div className="flex">
               <InformationCircleIcon className="h-6 w-6 text-blue-400 mr-3 flex-shrink-0" />
               <div>
-                <h3 className="text-lg font-medium text-blue-800 mb-2">Privacy & Security</h3>
-                <p className="text-blue-700 mb-2">
-                  All hardware analysis is performed <strong>locally in your browser</strong>. No data is sent to external servers. 
-                  Your system information remains completely private and secure.
-                </p>
-                <div className="text-sm text-blue-600 bg-blue-100 rounded-lg p-3 mt-3">
-                  <strong>🔒 Client-Side Only:</strong> We analyze YOUR device's hardware, not our server's hardware. 
-                  Analysis happens entirely in your browser using JavaScript APIs.
+                <h3 className="text-lg font-medium text-blue-800 mb-2">Privacy & How It Works</h3>
+                <div className="text-blue-700 space-y-2">
+                  <p>
+                    <strong>🔒 Completely Private:</strong> All analysis happens locally in your browser. 
+                    No hardware information is sent to our servers.
+                  </p>
+                  <p>
+                    <strong>🛡️ Browser Limitations:</strong> For security, browsers cannot access your actual RAM, 
+                    processor model, or GPU specs. You'll manually enter your real specifications.
+                  </p>
+                  <p>
+                    <strong>✅ Accurate Results:</strong> Manual input ensures you get recommendations 
+                    based on your <em>actual</em> hardware, not limited browser detection.
+                  </p>
                 </div>
               </div>
             </div>
