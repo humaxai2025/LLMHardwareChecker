@@ -49,9 +49,9 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
 
   // EmailJS Configuration (replace with your actual values when EmailJS is set up)
   const EMAILJS_CONFIG = {
-    SERVICE_ID: 'service_rs2ahgp', // Replace with your EmailJS service ID
-    TEMPLATE_ID: 'template_lbjao1n', // Replace with your EmailJS template ID  
-    PUBLIC_KEY: 'bjHQxvuwaLl2jgoBo', // Replace with your EmailJS public key
+    SERVICE_ID: 'service_xxxxxxx', // Replace with your EmailJS service ID
+    TEMPLATE_ID: 'template_xxxxxxx', // Replace with your EmailJS template ID  
+    PUBLIC_KEY: 'xxxxxxxxxxxxxxx', // Replace with your EmailJS public key
     TO_EMAIL: 'humanxi2025@gmail.com' // Your email address
   };
 
@@ -159,42 +159,88 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
       };
 
       let response;
+      let emailMethod = 'fallback';
       
-      if (emailjs && EMAILJS_CONFIG.SERVICE_ID !== 'service_xxxxxxx') {
-        // Use EmailJS if available and configured
-        response = await sendEmailWithEmailJS(templateParams);
+      if (isEmailJSConfigured()) {
+        try {
+          // Try EmailJS first
+          response = await sendEmailWithEmailJS(templateParams);
+          emailMethod = 'emailjs';
+        } catch (emailjsError) {
+          console.warn('EmailJS failed, falling back to console logging:', emailjsError);
+          // Fall back to console logging
+          response = await sendEmailFallback(templateParams);
+          emailMethod = 'fallback';
+        }
       } else {
         // Use fallback method
         response = await sendEmailFallback(templateParams);
-        
-        if (!emailjs) {
-          toast.success('Feedback recorded! Check console for details.', {
-            duration: 6000
-          });
-        } else {
-          toast.success('Feedback recorded! Thank you.', {
-            duration: 6000
-          });
-        }
+        emailMethod = 'fallback';
       }
 
       if (response.status === 200) {
-        if (emailjs && EMAILJS_CONFIG.SERVICE_ID !== 'service_xxxxxxx') {
-          toast.success('Feedback sent successfully! Thank you for your input.');
+        // Success messages based on method used
+        if (emailMethod === 'emailjs') {
+          toast.success('✅ Feedback sent successfully! Thank you for your input.', {
+            duration: 5000
+          });
+        } else {
+          toast.success('✅ Feedback recorded! Check browser console for details.', {
+            duration: 6000
+          });
+          
+          // Show additional setup info if EmailJS not configured
+          if (!emailjs) {
+            setTimeout(() => {
+              toast('💡 Install EmailJS to send actual emails: npm install @emailjs/browser', {
+                duration: 8000,
+                icon: '📧'
+              });
+            }, 1000);
+          } else if (!isEmailJSConfigured()) {
+            setTimeout(() => {
+              toast('⚙️ Configure EmailJS credentials to enable email sending', {
+                duration: 8000,
+                icon: '📧'
+              });
+            }, 1000);
+          }
         }
+        
         onClose();
         resetForm();
       } else {
-        throw new Error('Failed to send feedback');
+        throw new Error(`Server responded with status ${response.status}`);
       }
     } catch (error) {
       console.error('Failed to send feedback:', error);
       
-      if (!emailjs) {
-        toast.error('EmailJS not installed. Please check the console for your feedback details.');
+      // More specific error messages
+      if (error instanceof Error) {
+        if (error.message.includes('EmailJS not available')) {
+          toast.error('📧 EmailJS not installed. Feedback logged to console instead.', {
+            duration: 6000
+          });
+        } else if (error.message.includes('not properly configured')) {
+          toast.error('⚙️ EmailJS not configured. Please set up your EmailJS credentials.', {
+            duration: 6000
+          });
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          toast.error('🌐 Network error. Please check your internet connection and try again.', {
+            duration: 6000
+          });
+        } else {
+          toast.error(`❌ Failed to send feedback: ${error.message}`, {
+            duration: 6000
+          });
+        }
       } else {
-        toast.error('Failed to send feedback. Please try again later.');
+        toast.error('❌ An unexpected error occurred. Please try again later.', {
+          duration: 6000
+        });
       }
+      
+      // Don't close modal on error, let user try again
     } finally {
       setIsSubmitting(false);
     }
@@ -247,10 +293,20 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">Share Your Feedback</h2>
                   <p className="text-gray-600 mt-1">Help us improve the LLM Compatibility Checker</p>
-                  {!emailjs && (
-                    <p className="text-orange-600 text-sm mt-1">
-                      ⚠️ EmailJS not installed - feedback will be logged to console
-                    </p>
+                  {!isEmailJSConfigured() && (
+                    <div className="mt-2">
+                      {!emailjs ? (
+                        <div className="flex items-center text-orange-600 text-sm">
+                          <span className="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
+                          EmailJS not installed - feedback will be logged to console
+                        </div>
+                      ) : (
+                        <div className="flex items-center text-blue-600 text-sm">
+                          <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                          EmailJS installed but requires configuration for email sending
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
                 <button
@@ -424,18 +480,34 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
                     </div>
 
                     {/* EmailJS Setup Notice */}
-                    {!emailjs && (
-                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-orange-800 mb-2">📧 Email Setup Required</h4>
-                        <p className="text-sm text-orange-700 mb-2">
-                          To send actual emails, install EmailJS:
-                        </p>
-                        <code className="bg-orange-100 px-2 py-1 rounded text-sm">
-                          npm install @emailjs/browser
-                        </code>
-                        <p className="text-xs text-orange-600 mt-2">
-                          For now, feedback will be logged to the browser console.
-                        </p>
+                    {!isEmailJSConfigured() && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 className="font-semibold text-blue-800 mb-2">📧 Email Configuration Status</h4>
+                        {!emailjs ? (
+                          <div>
+                            <p className="text-sm text-blue-700 mb-2">
+                              EmailJS is not installed. To send actual emails:
+                            </p>
+                            <code className="bg-blue-100 px-2 py-1 rounded text-sm block mb-2">
+                              npm install @emailjs/browser
+                            </code>
+                            <p className="text-xs text-blue-600">
+                              For now, feedback will be logged to the browser console.
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="text-sm text-blue-700 mb-2">
+                              EmailJS is installed but not configured. To enable email sending:
+                            </p>
+                            <ol className="text-xs text-blue-600 list-decimal list-inside space-y-1">
+                              <li>Create account at https://www.emailjs.com/</li>
+                              <li>Set up email service (Gmail recommended)</li>
+                              <li>Create email template</li>
+                              <li>Update EMAILJS_CONFIG in FeedbackModal.tsx</li>
+                            </ol>
+                          </div>
+                        )}
                       </div>
                     )}
 

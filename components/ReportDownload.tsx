@@ -83,70 +83,85 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
 
       // Helper functions for consistent formatting
       const heading = (text: string, size = 16, color: [number, number, number] = [0, 0, 0]) => {
+        ensureSpace(size + 5);
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(size);
         pdf.setTextColor(color[0], color[1], color[2]);
         // Remove emojis and clean text for PDF compatibility
         const cleanText = text.replace(/[^\x00-\x7F]/g, '').trim();
         pdf.text(cleanText, margin, y);
-        y += size * 0.7 + 3;
+        y += size * 0.6 + 4;
       };
 
       const subheading = (text: string, size = 13, color: [number, number, number] = [0, 0, 0]) => {
+        ensureSpace(size + 3);
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(size);
         pdf.setTextColor(color[0], color[1], color[2]);
         const cleanText = text.replace(/[^\x00-\x7F]/g, '').trim();
         pdf.text(cleanText, margin, y);
-        y += size * 0.7 + 2;
+        y += size * 0.6 + 3;
       };
 
       const para = (text: string, size = 10, indent = 0) => {
+        ensureSpace(size + 2);
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(size);
         pdf.setTextColor(0, 0, 0);
         const cleanText = text.replace(/[^\x00-\x7F]/g, '').trim();
         const lines = pdf.splitTextToSize(cleanText, contentWidth - indent);
         pdf.text(lines, margin + indent, y);
-        y += lines.length * size * 0.5 + 2;
+        y += lines.length * (size * 0.5) + 3;
       };
 
       const bulletPoint = (text: string, size = 10, indent = 5) => {
+        ensureSpace(size + 2);
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(size);
         pdf.setTextColor(0, 0, 0);
         const cleanText = text.replace(/[^\x00-\x7F]/g, '').trim();
         const lines = pdf.splitTextToSize(`• ${cleanText}`, contentWidth - indent);
         pdf.text(lines, margin + indent, y);
-        y += lines.length * size * 0.5 + 1;
+        y += lines.length * (size * 0.5) + 2;
       };
 
       const code = (text: string, size = 9) => {
+        ensureSpace(size + 8);
         pdf.setFont('courier', 'normal');
         pdf.setFontSize(size);
-        pdf.setFillColor(245, 245, 245);
-        pdf.setTextColor(0, 0, 0);
+        pdf.setFillColor(248, 250, 252);
+        pdf.setTextColor(55, 65, 81);
         const cleanText = text.replace(/[^\x00-\x7F]/g, '').trim();
-        const lines = pdf.splitTextToSize(cleanText, contentWidth - 10);
-        const height = lines.length * size * 0.5 + 6;
-        pdf.rect(margin, y, contentWidth, height, 'F');
-        pdf.setDrawColor(200, 200, 200);
-        pdf.rect(margin, y, contentWidth, height, 'S');
-        pdf.text(lines, margin + 3, y + 4);
+        const lines = pdf.splitTextToSize(cleanText, contentWidth - 12);
+        const height = lines.length * (size * 0.6) + 8;
+        
+        // Code block background
+        pdf.rect(margin + 2, y - 2, contentWidth - 4, height, 'F');
+        pdf.setDrawColor(209, 213, 219);
+        pdf.rect(margin + 2, y - 2, contentWidth - 4, height, 'S');
+        
+        // Code text
+        pdf.text(lines, margin + 6, y + 3);
         y += height + 3;
       };
 
       const ensureSpace = (requiredHeight: number) => {
-        if (y + requiredHeight > pageHeight - margin) {
+        if (y + requiredHeight > pageHeight - margin - 10) {
           pdf.addPage();
-          y = margin;
+          y = margin + 5;
         }
       };
 
       const drawSeparator = () => {
-        pdf.setDrawColor(180, 180, 180);
-        pdf.line(margin, y + 2, pageWidth - margin, y + 2);
-        y += 6;
+        ensureSpace(8);
+        pdf.setDrawColor(229, 231, 235);
+        pdf.setLineWidth(0.5);
+        pdf.line(margin + 10, y + 3, pageWidth - margin - 10, y + 3);
+        y += 8;
+      };
+
+      const addSpacing = (space = 5) => {
+        y += space;
       };
 
       // TITLE PAGE WITH HEADER
@@ -286,20 +301,20 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
           y += 3;
           
           category.models.forEach((model, idx) => {
-            ensureSpace(25);
+            ensureSpace(30);
             
-            // Model header box
+            // Model header box with better formatting
             pdf.setFillColor(249, 250, 251);
             pdf.setDrawColor(209, 213, 219);
-            pdf.rect(margin, y, contentWidth, 6, 'FD');
+            pdf.rect(margin, y, contentWidth, 10, 'FD');
             
             pdf.setFont('helvetica', 'bold');
-            pdf.setFontSize(12);
+            pdf.setFontSize(13);
             pdf.setTextColor(31, 41, 55);
-            pdf.text(`${idx + 1}. ${model.name}`, margin + 2, y + 4);
-            y += 8;
+            pdf.text(`${idx + 1}. ${model.name}`, margin + 3, y + 6);
+            y += 12;
             
-            // Model details
+            // Model details with better spacing
             pdf.setFont('helvetica', 'normal');
             pdf.setFontSize(10);
             pdf.setTextColor(0, 0, 0);
@@ -311,44 +326,58 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
             bulletPoint(`Performance: ${model.compatibility.performance_tier}`, 10, 3);
             bulletPoint(`Description: ${model.specs.description}`, 10, 3);
             
-            y += 2;
+            addSpacing(3);
+            
+            // Requirements section with background
+            pdf.setFillColor(248, 250, 252);
+            pdf.rect(margin + 5, y, contentWidth - 10, 15, 'F');
+            pdf.setDrawColor(226, 232, 240);
+            pdf.rect(margin + 5, y, contentWidth - 10, 15, 'S');
+            y += 3;
+            
             subheading('System Requirements:', 11);
-            bulletPoint(`RAM: ${model.specs.min_ram_gb} GB minimum, ${model.specs.recommended_ram_gb} GB recommended`, 9, 6);
-            bulletPoint(`VRAM: ${model.specs.min_vram_gb || 'N/A'} GB minimum, ${model.specs.recommended_vram_gb || 'N/A'} GB recommended`, 9, 6);
-            bulletPoint(`CPU-Only Support: ${model.specs.cpu_only ? 'Yes' : 'No'}`, 9, 6);
+            bulletPoint(`RAM: ${model.specs.min_ram_gb} GB minimum, ${model.specs.recommended_ram_gb} GB recommended`, 9, 8);
+            bulletPoint(`VRAM: ${model.specs.min_vram_gb || 'N/A'} GB minimum, ${model.specs.recommended_vram_gb || 'N/A'} GB recommended`, 9, 8);
+            bulletPoint(`CPU-Only Support: ${model.specs.cpu_only ? 'Yes' : 'No'}`, 9, 8);
             
             if (model.compatibility.recommended_quant) {
-              bulletPoint(`Recommended Quantization: ${model.compatibility.recommended_quant}`, 9, 6);
+              bulletPoint(`Recommended Quantization: ${model.compatibility.recommended_quant}`, 9, 8);
             }
             
             if (model.compatibility.notes.length > 0) {
-              bulletPoint(`Special Notes: ${model.compatibility.notes.join('; ')}`, 9, 6);
+              bulletPoint(`Special Notes: ${model.compatibility.notes.join('; ')}`, 9, 8);
             }
             
-            y += 2;
+            y += 3;
+            addSpacing(5);
+            
             subheading('Installation Options:', 11);
             
-            // Installation methods
+            // Installation methods with better formatting
+            let optionNumber = 1;
+            
             if (model.specs.install_methods.ollama) {
-              para('Option 1: OLLAMA (Recommended for Beginners)', 10, 3);
+              para(`Option ${optionNumber}: OLLAMA (Recommended for Beginners)`, 10, 3);
               if (model.specs.install_methods.ollama.command) {
                 code(model.specs.install_methods.ollama.command);
               }
               para(`Setup: ${model.specs.install_methods.ollama.note || 'Installation via Ollama'}`, 9, 6);
-              y += 1;
+              addSpacing(2);
+              optionNumber++;
             }
             
             if (model.specs.install_methods.lm_studio) {
-              para('Option 2: LM STUDIO (GUI Application)', 10, 3);
+              para(`Option ${optionNumber}: LM STUDIO (GUI Application)`, 10, 3);
               if (model.specs.install_methods.lm_studio.command) {
                 code(model.specs.install_methods.lm_studio.command);
               }
               para(`Setup: ${model.specs.install_methods.lm_studio.note || 'Use LM Studio GUI interface'}`, 9, 6);
-              y += 1;
+              addSpacing(2);
+              optionNumber++;
             }
             
             if (model.specs.install_methods.huggingface) {
-              para('Option 3: HUGGING FACE (For Developers)', 10, 3);
+              para(`Option ${optionNumber}: HUGGING FACE (For Developers)`, 10, 3);
               if (model.specs.install_methods.huggingface.model_id) {
                 para(`Model ID: ${model.specs.install_methods.huggingface.model_id}`, 9, 6);
               }
@@ -356,11 +385,12 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
                 code(model.specs.install_methods.huggingface.command);
               }
               para(`Setup: ${model.specs.install_methods.huggingface.note || 'Use with HuggingFace transformers'}`, 9, 6);
-              y += 1;
+              addSpacing(2);
+              optionNumber++;
             }
             
             if (model.specs.install_methods.gguf) {
-              para('Option 4: GGUF/llama.cpp (Advanced Users)', 10, 3);
+              para(`Option ${optionNumber}: GGUF/llama.cpp (Advanced Users)`, 10, 3);
               if (model.specs.install_methods.gguf.source) {
                 para(`Download: ${model.specs.install_methods.gguf.source}`, 8, 6);
               }
@@ -368,11 +398,12 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
                 para(`Recommended: ${model.specs.install_methods.gguf.recommended_quant}`, 9, 6);
               }
               para(`Notes: ${model.specs.install_methods.gguf.note || 'Use with llama.cpp or similar tools'}`, 9, 6);
-              y += 1;
+              addSpacing(2);
+              optionNumber++;
             }
             
             if (model.specs.install_methods.llamacpp) {
-              para('Option 5: LLAMA.CPP (Command Line)', 10, 3);
+              para(`Option ${optionNumber}: LLAMA.CPP (Command Line)`, 10, 3);
               if (model.specs.install_methods.llamacpp.command) {
                 code(model.specs.install_methods.llamacpp.command);
               }
@@ -380,6 +411,7 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
                 para(`Download: ${model.specs.install_methods.llamacpp.download_url}`, 8, 6);
               }
               para(`Notes: ${model.specs.install_methods.llamacpp.note || 'Use with llama.cpp framework'}`, 9, 6);
+              addSpacing(2);
             }
             
             drawSeparator();
@@ -523,10 +555,10 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
 
       // COMPATIBILITY MATRIX TABLE
       pdf.addPage();
-      y = margin;
+      y = margin + 5;
       heading('DETAILED COMPATIBILITY MATRIX', 16, [37, 99, 235]);
       para('Complete overview of all models and their compatibility with your system:', 11);
-      y += 5;
+      addSpacing(8);
       
       // Create comprehensive table
       const allModels = [
@@ -536,79 +568,110 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
         ...recommendations.not_suitable,
       ];
 
-      // Table header with background
-      pdf.setFillColor(59, 130, 246);
-      pdf.rect(margin, y, contentWidth, 8, 'F');
+      // Table header with better formatting
+      pdf.setFillColor(37, 99, 235);
+      pdf.rect(margin, y, contentWidth, 12, 'F');
       pdf.setTextColor(255, 255, 255);
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(10);
       
       // Column widths and headers
-      const colWidths = [45, 18, 25, 18, 18, 20, 20, 26];
-      const headers = ['Model Name', 'Size', 'Performance', 'Min RAM', 'Rec RAM', 'Min VRAM', 'Rec VRAM', 'Compatibility'];
+      const colWidths = [42, 16, 28, 16, 16, 18, 18, 28];
+      const headers = ['Model Name', 'Size', 'Performance', 'Min RAM', 'Rec RAM', 'Min VRAM', 'Rec VRAM', 'Status'];
       let x = margin;
       
       headers.forEach((header, i) => {
-        pdf.text(header, x + 1, y + 5);
+        pdf.text(header, x + 2, y + 7);
         x += colWidths[i];
       });
-      y += 10;
+      y += 14;
 
-      // Table rows
+      // Table rows with improved formatting
       pdf.setTextColor(0, 0, 0);
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(8);
       
       allModels.forEach((model, index) => {
-        ensureSpace(5);
+        ensureSpace(8);
         
-        // Alternate row colors
+        // Alternate row colors for better readability
         if (index % 2 === 0) {
           pdf.setFillColor(248, 250, 252);
-          pdf.rect(margin, y, contentWidth, 6, 'F');
+          pdf.rect(margin, y, contentWidth, 8, 'F');
         }
+        
+        // Draw cell borders
+        pdf.setDrawColor(226, 232, 240);
+        pdf.setLineWidth(0.2);
+        x = margin;
+        colWidths.forEach((width) => {
+          pdf.rect(x, y, width, 8, 'S');
+          x += width;
+        });
         
         x = margin;
         const isCompatible = [...recommendations.excellent, ...recommendations.good, ...recommendations.basic].includes(model);
         const status = isCompatible ? 'Compatible' : 'Not Suitable';
         
         const rowData = [
-          model.name.length > 25 ? model.name.substring(0, 22) + '...' : model.name,
+          model.name.length > 22 ? model.name.substring(0, 19) + '...' : model.name,
           model.specs.parameters,
-          model.compatibility.performance_tier.length > 15 ? 
-            model.compatibility.performance_tier.substring(0, 12) + '...' : model.compatibility.performance_tier,
+          model.compatibility.performance_tier.length > 18 ? 
+            model.compatibility.performance_tier.substring(0, 15) + '...' : model.compatibility.performance_tier,
           `${model.specs.min_ram_gb}GB`,
           `${model.specs.recommended_ram_gb}GB`,
-          `${model.specs.min_vram_gb || 'N/A'}GB`,
-          `${model.specs.recommended_vram_gb || 'N/A'}GB`,
+          `${model.specs.min_vram_gb || 'N/A'}`,
+          `${model.specs.recommended_vram_gb || 'N/A'}`,
           status
         ];
         
+        // Color code the status column
         rowData.forEach((cell, i) => {
-          pdf.text(String(cell), x + 1, y + 4, { maxWidth: colWidths[i] - 2 });
+          if (i === 7) { // Status column
+            pdf.setTextColor(isCompatible ? 34 : 185, isCompatible ? 197 : 28, isCompatible ? 94 : 28);
+          } else {
+            pdf.setTextColor(0, 0, 0);
+          }
+          pdf.text(String(cell), x + 2, y + 5, { maxWidth: colWidths[i] - 4 });
           x += colWidths[i];
         });
-        y += 6;
+        y += 8;
       });
 
-      // Summary statistics
-      y += 8;
+      // Summary statistics with better layout
+      addSpacing(10);
       heading('COMPATIBILITY SUMMARY', 14, [37, 99, 235]);
       
+      // Create a nice summary box
       pdf.setFillColor(240, 253, 244);
-      pdf.rect(margin, y, contentWidth, 25, 'F');
+      pdf.rect(margin, y, contentWidth, 35, 'F');
       pdf.setDrawColor(34, 197, 94);
-      pdf.rect(margin, y, contentWidth, 25, 'S');
+      pdf.setLineWidth(1);
+      pdf.rect(margin, y, contentWidth, 35, 'S');
       
-      y += 4;
+      y += 5;
       subheading('Model Compatibility Statistics', 12);
-      bulletPoint(`Total Models Analyzed: ${allModels.length}`, 11, 5);
-      bulletPoint(`Compatible Models: ${suitableModels.length} (${Math.round((suitableModels.length / allModels.length) * 100)}%)`, 11, 5);
-      bulletPoint(`Excellent Performance: ${recommendations.excellent.length} models`, 11, 5);
-      bulletPoint(`Good Performance: ${recommendations.good.length} models`, 11, 5);
-      bulletPoint(`Basic Performance: ${recommendations.basic.length} models`, 11, 5);
-      bulletPoint(`Not Suitable: ${recommendations.not_suitable.length} models`, 11, 5);
-      y += 8;
+      
+      // Two-column layout for stats
+      const leftCol = margin + 5;
+      const rightCol = margin + (contentWidth / 2) + 5;
+      const tempY = y;
+      
+      // Left column
+      y = tempY;
+      bulletPoint(`Total Models Analyzed: ${allModels.length}`, 10, 0);
+      bulletPoint(`Compatible Models: ${suitableModels.length} (${Math.round((suitableModels.length / allModels.length) * 100)}%)`, 10, 0);
+      bulletPoint(`Excellent Performance: ${recommendations.excellent.length} models`, 10, 0);
+      
+      // Right column
+      y = tempY;
+      x = rightCol;
+      pdf.text(`• Good Performance: ${recommendations.good.length} models`, x, y + 3);
+      pdf.text(`• Basic Performance: ${recommendations.basic.length} models`, x, y + 8);
+      pdf.text(`• Not Suitable: ${recommendations.not_suitable.length} models`, x, y + 13);
+      
+      y = tempY + 25;
+      addSpacing(8);
 
       // Hardware utilization analysis
       if (suitableModels.length > 0) {
