@@ -1,3 +1,5 @@
+'use client';
+
 // Client-side system analysis utilities
 export interface SystemInfo {
   os: string;

@@ -13,10 +13,10 @@ import {
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
 
-import { SystemInfo, analyzeSystem } from '../lib/systemAnalyzer';
+import { SystemInfo } from '../lib/systemAnalyzer';
 import { LLMRecommender } from '../lib/llmRecommender';
 import { Recommendations } from '../lib/llmDatabase';
-import { ReportGenerator } from '../lib/reportGenerator';
+import { analyzeClientSystem } from '../lib/clientAnalyzer';
 
 // Components
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -56,11 +56,22 @@ export default function HomePage() {
   }, []);
 
   const startAnalysis = async () => {
-    // Ensure we're in the browser
-    if (typeof window === 'undefined') {
+    // Multiple checks to ensure we're in browser
+    if (typeof window === 'undefined' || typeof document === 'undefined' || typeof navigator === 'undefined') {
       setState(prev => ({ 
         ...prev, 
-        error: 'Analysis must run in a browser environment',
+        error: 'Analysis must run in a browser environment. Please ensure JavaScript is enabled.',
+        isLoading: false,
+        isAnalyzing: false 
+      }));
+      return;
+    }
+
+    // Check if we have basic browser APIs
+    if (!navigator.userAgent || !navigator.hardwareConcurrency) {
+      setState(prev => ({ 
+        ...prev, 
+        error: 'Browser does not support hardware detection APIs.',
         isLoading: false,
         isAnalyzing: false 
       }));
@@ -70,15 +81,22 @@ export default function HomePage() {
     setState(prev => ({ ...prev, isLoading: true, isAnalyzing: true, error: null }));
     
     try {
-      toast.loading('Analyzing your system hardware...', { id: 'analysis' });
+      toast.loading('Analyzing your browser client hardware...', { id: 'analysis' });
       
-      // Simulate some delay for better UX
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Add delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // This will now analyze the CLIENT's hardware, not the server's
-      const systemInfo = await analyzeSystem();
+      // This will now ONLY analyze the CLIENT's hardware using dynamic import
+      console.log('🔍 Starting client-side hardware analysis...');
+      console.log('User Agent:', navigator.userAgent);
+      console.log('Platform:', navigator.platform);
+      console.log('CPU Cores:', navigator.hardwareConcurrency);
       
-      toast.loading('Generating recommendations...', { id: 'analysis' });
+      const systemInfo = await analyzeClientSystem();
+      
+      console.log('✅ Client hardware analysis complete:', systemInfo);
+      
+      toast.loading('Generating recommendations based on your hardware...', { id: 'analysis' });
       await new Promise(resolve => setTimeout(resolve, 500));
       
       const recommender = new LLMRecommender(systemInfo);
@@ -94,18 +112,18 @@ export default function HomePage() {
         analysisComplete: true,
       });
       
-      toast.success('Analysis complete!', { id: 'analysis' });
+      toast.success('Your hardware analysis is complete!', { id: 'analysis' });
       
     } catch (error) {
-      console.error('Analysis failed:', error);
+      console.error('❌ Client-side analysis failed:', error);
       setState(prev => ({
         ...prev,
         isLoading: false,
         isAnalyzing: false,
-        error: `Failed to analyze system: ${error instanceof Error ? error.message : 'Please ensure you\'re using a modern browser and try again.'}`,
+        error: `Failed to analyze your system: ${error instanceof Error ? error.message : 'Please ensure you\'re using a modern browser and JavaScript is enabled.'}`,
       }));
       
-      toast.error('Analysis failed. Please try again.', { id: 'analysis' });
+      toast.error('Analysis failed. Please ensure you\'re using a modern browser.', { id: 'analysis' });
     }
   };
 
@@ -251,10 +269,21 @@ export default function HomePage() {
                 <h2 className="text-2xl font-semibold text-gray-800 mb-4">
                   Analyzing Your System
                 </h2>
-                <p className="text-gray-600 max-w-md mx-auto">
+                <p className="text-gray-600 max-w-md mx-auto mb-4">
                   We're detecting your hardware specifications and checking compatibility 
                   with popular LLM models. This will take just a moment.
                 </p>
+                {isMounted && (
+                  <div className="text-sm text-blue-600 bg-blue-50 rounded-lg p-3 max-w-lg mx-auto">
+                    <div className="mb-2"><strong>🔍 Analyzing your browser client:</strong></div>
+                    <div>Platform: {navigator.platform}</div>
+                    <div>Browser: {navigator.userAgent.split(' ')[0]}</div>
+                    <div>CPU Cores: {navigator.hardwareConcurrency}</div>
+                    <div className="text-xs mt-2 text-blue-500">
+                      ✅ This is YOUR device, not a server!
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -398,10 +427,14 @@ export default function HomePage() {
               <InformationCircleIcon className="h-6 w-6 text-blue-400 mr-3 flex-shrink-0" />
               <div>
                 <h3 className="text-lg font-medium text-blue-800 mb-2">Privacy & Security</h3>
-                <p className="text-blue-700">
-                  All hardware analysis is performed locally in your browser. No data is sent to external servers. 
+                <p className="text-blue-700 mb-2">
+                  All hardware analysis is performed <strong>locally in your browser</strong>. No data is sent to external servers. 
                   Your system information remains completely private and secure.
                 </p>
+                <div className="text-sm text-blue-600 bg-blue-100 rounded-lg p-3 mt-3">
+                  <strong>🔒 Client-Side Only:</strong> We analyze YOUR device's hardware, not our server's hardware. 
+                  Analysis happens entirely in your browser using JavaScript APIs.
+                </div>
               </div>
             </div>
           </motion.div>
