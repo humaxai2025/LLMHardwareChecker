@@ -5,6 +5,7 @@ export interface InstallMethod {
   model_id?: string;
   source?: string;
   recommended_quant?: string;
+  download_url?: string;
 }
 
 export interface LLMModel {
