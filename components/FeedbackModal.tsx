@@ -49,9 +49,9 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
 
   // EmailJS Configuration (replace with your actual values when EmailJS is set up)
   const EMAILJS_CONFIG = {
-    SERVICE_ID: 'service_xxxxxxx', // Replace with your EmailJS service ID
-    TEMPLATE_ID: 'template_xxxxxxx', // Replace with your EmailJS template ID  
-    PUBLIC_KEY: 'xxxxxxxxxxxxxxx', // Replace with your EmailJS public key
+    SERVICE_ID: 'service_rs2ahgp', // Replace with your EmailJS service ID
+    TEMPLATE_ID: 'template_lbjao1n', // Replace with your EmailJS template ID  
+    PUBLIC_KEY: 'bjHQxvuwaLl2jgoBo', // Replace with your EmailJS public key
     TO_EMAIL: 'humanxi2025@gmail.com' // Your email address
   };
 
