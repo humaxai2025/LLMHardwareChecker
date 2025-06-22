@@ -22,6 +22,7 @@ export interface LLMModel {
     huggingface?: InstallMethod;
     gguf?: InstallMethod;
     lm_studio?: InstallMethod;
+     llamacpp?: InstallMethod;
   };
 }
 
