@@ -82,46 +82,42 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
       const contentWidth = pageWidth - margin * 2;
       let y = margin;
 
-      // Helper to add headings
-      const heading = (text, size = 16) => {
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(size);
-        pdf.text(text, margin, y);
-        y += size * 0.7;
-      };
-      // Helper to add subheadings
-      const subheading = (text, size = 13) => {
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(size);
-        pdf.text(text, margin, y);
-        y += size * 0.7;
-      };
-      // Helper to add normal text
-      const para = (text, size = 11) => {
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(size);
-        const lines = pdf.splitTextToSize(text, contentWidth);
-        pdf.text(lines, margin, y);
-        y += lines.length * size * 0.5 + 2;
-      };
-      // Helper to add a table row
-      const tableRow = (columns, colWidths, size = 10, bold = false) => {
-        pdf.setFont('helvetica', bold ? 'bold' : 'normal');
-        pdf.setFontSize(size);
-        let x = margin;
-        columns.forEach((col, i) => {
-          pdf.text(String(col), x, y, { maxWidth: colWidths[i] - 2 });
-          x += colWidths[i];
-        });
-        y += size * 0.6;
-      };
-      // New page if needed
-      const ensureSpace = rows => {
-        if (y > pageHeight - (rows * 8 + margin)) {
-          pdf.addPage();
-          y = margin;
-        }
-      };
+    const heading = (text: string, size = 16) => {
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(size);
+  pdf.text(text, margin, y);
+  y += size * 0.7;
+};
+const subheading = (text: string, size = 13) => {
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(size);
+  pdf.text(text, margin, y);
+  y += size * 0.7;
+};
+const para = (text: string, size = 11) => {
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(size);
+  const lines = pdf.splitTextToSize(text, contentWidth);
+  pdf.text(lines, margin, y);
+  y += lines.length * size * 0.5 + 2;
+};
+const tableRow = (columns: (string | number)[], colWidths: number[], size = 10, bold = false) => {
+  pdf.setFont('helvetica', bold ? 'bold' : 'normal');
+  pdf.setFontSize(size);
+  let x = margin;
+  columns.forEach((col, i) => {
+    pdf.text(String(col), x, y, { maxWidth: colWidths[i] - 2 });
+    x += colWidths[i];
+  });
+  y += size * 0.6;
+};
+const ensureSpace = (rows: number) => {
+  if (y > pageHeight - (rows * 8 + margin)) {
+    pdf.addPage();
+    y = margin;
+  }
+};
+
 
       // TITLE & DATE
       pdf.setFillColor(59, 130, 246); // blue bar
