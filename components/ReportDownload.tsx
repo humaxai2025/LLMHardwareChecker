@@ -331,8 +331,10 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
             // Installation methods
             if (model.specs.install_methods.ollama) {
               para('Option 1: OLLAMA (Recommended for Beginners)', 10, 3);
-              code(model.specs.install_methods.ollama.command);
-              para(`Setup: ${model.specs.install_methods.ollama.note}`, 9, 6);
+              if (model.specs.install_methods.ollama.command) {
+                code(model.specs.install_methods.ollama.command);
+              }
+              para(`Setup: ${model.specs.install_methods.ollama.note || 'Installation via Ollama'}`, 9, 6);
               y += 1;
             }
             
@@ -341,7 +343,7 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
               if (model.specs.install_methods.lm_studio.command) {
                 code(model.specs.install_methods.lm_studio.command);
               }
-              para(`Setup: ${model.specs.install_methods.lm_studio.note}`, 9, 6);
+              para(`Setup: ${model.specs.install_methods.lm_studio.note || 'Use LM Studio GUI interface'}`, 9, 6);
               y += 1;
             }
             
@@ -353,7 +355,7 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
               if (model.specs.install_methods.huggingface.command) {
                 code(model.specs.install_methods.huggingface.command);
               }
-              para(`Setup: ${model.specs.install_methods.huggingface.note}`, 9, 6);
+              para(`Setup: ${model.specs.install_methods.huggingface.note || 'Use with HuggingFace transformers'}`, 9, 6);
               y += 1;
             }
             
@@ -365,7 +367,7 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
               if (model.specs.install_methods.gguf.recommended_quant) {
                 para(`Recommended: ${model.specs.install_methods.gguf.recommended_quant}`, 9, 6);
               }
-              para(`Notes: ${model.specs.install_methods.gguf.note}`, 9, 6);
+              para(`Notes: ${model.specs.install_methods.gguf.note || 'Use with llama.cpp or similar tools'}`, 9, 6);
               y += 1;
             }
             
@@ -377,7 +379,7 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
               if (model.specs.install_methods.llamacpp.download_url) {
                 para(`Download: ${model.specs.install_methods.llamacpp.download_url}`, 8, 6);
               }
-              para(`Notes: ${model.specs.install_methods.llamacpp.note}`, 9, 6);
+              para(`Notes: ${model.specs.install_methods.llamacpp.note || 'Use with llama.cpp framework'}`, 9, 6);
             }
             
             drawSeparator();
@@ -463,8 +465,10 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
         y += 2;
         
         para('Step 2: Install Your First Model', 11, 3);
-        if (topModel.specs.install_methods.ollama) {
+        if (topModel.specs.install_methods.ollama?.command) {
           code(topModel.specs.install_methods.ollama.command);
+        } else {
+          code('ollama run llama3.2:3b');
         }
         bulletPoint('Wait for the model to download (first time only)', 10, 8);
         bulletPoint('The model will be cached locally for future use', 10, 8);
