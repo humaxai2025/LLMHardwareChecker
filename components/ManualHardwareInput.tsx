@@ -4,7 +4,6 @@ import {
   ComputerDesktopIcon, 
   CpuChipIcon, 
   CircleStackIcon,
-  ServerStackIcon,
   CheckIcon,
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
@@ -26,7 +25,6 @@ const ManualHardwareInput: React.FC<ManualHardwareInputProps> = ({
     totalRamGB: 16,
     gpuName: '',
     gpuVramGB: 8,
-    useAutoDetect: false
   });
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -39,8 +37,8 @@ const ManualHardwareInput: React.FC<ManualHardwareInputProps> = ({
       cpuCores: manualInput.cpuCores,
       totalRamGB: manualInput.totalRamGB,
       availableRamGB: manualInput.totalRamGB * 0.8,
-      totalStorageGB: 500, // Default estimate
-      freeStorageGB: 250, // Default estimate
+      totalStorageGB: 500,
+      freeStorageGB: 250,
       gpus: manualInput.gpuName ? [{
         name: manualInput.gpuName,
         vramGB: manualInput.gpuVramGB,
@@ -58,153 +56,6 @@ const ManualHardwareInput: React.FC<ManualHardwareInputProps> = ({
     onComplete(systemInfo);
   };
 
-  const steps = [
-    {
-      title: 'Operating System & CPU',
-      icon: ComputerDesktopIcon,
-      content: (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Operating System
-            </label>
-            <select
-              value={manualInput.os}
-              onChange={(e) => setManualInput(prev => ({ ...prev, os: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="Windows">Windows</option>
-              <option value="macOS">macOS</option>
-              <option value="Linux">Linux</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Processor (e.g., AMD Ryzen 7 5800X, Intel Core i7-12700K)
-            </label>
-            <input
-              type="text"
-              value={manualInput.processor}
-              onChange={(e) => setManualInput(prev => ({ ...prev, processor: e.target.value }))}
-              placeholder="Enter your processor model"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              CPU Cores/Threads
-            </label>
-            <input
-              type="number"
-              value={manualInput.cpuCores}
-              onChange={(e) => setManualInput(prev => ({ ...prev, cpuCores: parseInt(e.target.value) || 8 }))}
-              min="1"
-              max="128"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Browser detected: {browserDetected.cpuCores} threads
-            </p>
-          </div>
-        </div>
-      )
-    },
-    {
-      title: 'Memory (RAM)',
-      icon: CircleStackIcon,
-      content: (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Total RAM (GB)
-            </label>
-            <select
-              value={manualInput.totalRamGB}
-              onChange={(e) => setManualInput(prev => ({ ...prev, totalRamGB: parseInt(e.target.value) }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value={4}>4 GB</option>
-              <option value={8}>8 GB</option>
-              <option value={16}>16 GB</option>
-              <option value={32}>32 GB</option>
-              <option value={64}>64 GB</option>
-              <option value={128}>128 GB</option>
-            </select>
-          </div>
-          
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex">
-              <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400 mr-2 flex-shrink-0" />
-              <div>
-                <h4 className="text-sm font-medium text-yellow-800">Why Manual Input?</h4>
-                <p className="text-sm text-yellow-700 mt-1">
-                  For security reasons, browsers cannot access your actual RAM amount. 
-                  Please enter your system's actual RAM for accurate LLM recommendations.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )
-    },
-    {
-      title: 'Graphics Card (GPU)',
-      icon: CpuChipIcon,
-      content: (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              GPU Model (Optional)
-            </label>
-            <input
-              type="text"
-              value={manualInput.gpuName}
-              onChange={(e) => setManualInput(prev => ({ ...prev, gpuName: e.target.value }))}
-              placeholder="e.g., NVIDIA RTX 4090, AMD RX 7900 XTX"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          
-          {manualInput.gpuName && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                GPU VRAM (GB)
-              </label>
-              <select
-                value={manualInput.gpuVramGB}
-                onChange={(e) => setManualInput(prev => ({ ...prev, gpuVramGB: parseInt(e.target.value) }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value={2}>2 GB</option>
-                <option value={4}>4 GB</option>
-                <option value={6}>6 GB</option>
-                <option value={8}>8 GB</option>
-                <option value={10}>10 GB</option>
-                <option value={12}>12 GB</option>
-                <option value={16}>16 GB</option>
-                <option value={24}>24 GB</option>
-                <option value={48}>48 GB</option>
-              </select>
-            </div>
-          )}
-          
-          {browserDetected.gpus && browserDetected.gpus.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-blue-800 mb-2">Browser Detected:</h4>
-              {browserDetected.gpus.map((gpu, index) => (
-                <div key={index} className="text-sm text-blue-700">
-                  {gpu.name} ({gpu.vramGB})
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )
-    }
-  ];
-
   return (
     <div className="max-w-2xl mx-auto">
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -221,7 +72,7 @@ const ManualHardwareInput: React.FC<ManualHardwareInputProps> = ({
           {/* Progress Bar */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-2">
-              {steps.map((step, index) => (
+              {[0, 1, 2].map((step, index) => (
                 <div key={index} className="flex items-center">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                     index <= currentStep 
@@ -230,7 +81,7 @@ const ManualHardwareInput: React.FC<ManualHardwareInputProps> = ({
                   }`}>
                     {index < currentStep ? <CheckIcon className="h-5 w-5" /> : index + 1}
                   </div>
-                  {index < steps.length - 1 && (
+                  {index < 2 && (
                     <div className={`w-16 h-1 mx-2 ${
                       index < currentStep ? 'bg-blue-600' : 'bg-gray-200'
                     }`} />
@@ -240,21 +91,177 @@ const ManualHardwareInput: React.FC<ManualHardwareInputProps> = ({
             </div>
           </div>
 
-          {/* Current Step */}
+          {/* Step Content */}
           <motion.div
             key={currentStep}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="flex items-center mb-6">
-              <steps[currentStep].icon className="h-8 w-8 text-blue-600 mr-3" />
-              <h3 className="text-xl font-semibold text-gray-900">
-                {steps[currentStep].title}
-              </h3>
-            </div>
+            {/* Step 0: OS & CPU */}
+            {currentStep === 0 && (
+              <div>
+                <div className="flex items-center mb-6">
+                  <ComputerDesktopIcon className="h-8 w-8 text-blue-600 mr-3" />
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    Operating System & CPU
+                  </h3>
+                </div>
 
-            {steps[currentStep].content}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Operating System
+                    </label>
+                    <select
+                      value={manualInput.os}
+                      onChange={(e) => setManualInput(prev => ({ ...prev, os: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="Windows">Windows</option>
+                      <option value="macOS">macOS</option>
+                      <option value="Linux">Linux</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Processor (e.g., AMD Ryzen 7 5800X, Intel Core i7-12700K)
+                    </label>
+                    <input
+                      type="text"
+                      value={manualInput.processor}
+                      onChange={(e) => setManualInput(prev => ({ ...prev, processor: e.target.value }))}
+                      placeholder="Enter your processor model"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      CPU Cores/Threads
+                    </label>
+                    <input
+                      type="number"
+                      value={manualInput.cpuCores}
+                      onChange={(e) => setManualInput(prev => ({ ...prev, cpuCores: parseInt(e.target.value) || 8 }))}
+                      min="1"
+                      max="128"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Browser detected: {browserDetected.cpuCores} threads
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 1: RAM */}
+            {currentStep === 1 && (
+              <div>
+                <div className="flex items-center mb-6">
+                  <CircleStackIcon className="h-8 w-8 text-blue-600 mr-3" />
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    Memory (RAM)
+                  </h3>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Total RAM (GB)
+                    </label>
+                    <select
+                      value={manualInput.totalRamGB}
+                      onChange={(e) => setManualInput(prev => ({ ...prev, totalRamGB: parseInt(e.target.value) }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value={4}>4 GB</option>
+                      <option value={8}>8 GB</option>
+                      <option value={16}>16 GB</option>
+                      <option value={32}>32 GB</option>
+                      <option value={64}>64 GB</option>
+                      <option value={128}>128 GB</option>
+                    </select>
+                  </div>
+                  
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex">
+                      <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400 mr-2 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-sm font-medium text-yellow-800">Why Manual Input?</h4>
+                        <p className="text-sm text-yellow-700 mt-1">
+                          For security reasons, browsers cannot access your actual RAM amount. 
+                          Please enter your system's actual RAM for accurate LLM recommendations.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: GPU */}
+            {currentStep === 2 && (
+              <div>
+                <div className="flex items-center mb-6">
+                  <CpuChipIcon className="h-8 w-8 text-blue-600 mr-3" />
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    Graphics Card (GPU)
+                  </h3>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      GPU Model (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={manualInput.gpuName}
+                      onChange={(e) => setManualInput(prev => ({ ...prev, gpuName: e.target.value }))}
+                      placeholder="e.g., NVIDIA RTX 4090, AMD RX 7900 XTX"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  {manualInput.gpuName && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        GPU VRAM (GB)
+                      </label>
+                      <select
+                        value={manualInput.gpuVramGB}
+                        onChange={(e) => setManualInput(prev => ({ ...prev, gpuVramGB: parseInt(e.target.value) }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value={2}>2 GB</option>
+                        <option value={4}>4 GB</option>
+                        <option value={6}>6 GB</option>
+                        <option value={8}>8 GB</option>
+                        <option value={10}>10 GB</option>
+                        <option value={12}>12 GB</option>
+                        <option value={16}>16 GB</option>
+                        <option value={24}>24 GB</option>
+                        <option value={48}>48 GB</option>
+                      </select>
+                    </div>
+                  )}
+                  
+                  {browserDetected.gpus && browserDetected.gpus.length > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-blue-800 mb-2">Browser Detected:</h4>
+                      {browserDetected.gpus.map((gpu, index) => (
+                        <div key={index} className="text-sm text-blue-700">
+                          {gpu.name} ({gpu.vramGB})
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </motion.div>
 
           {/* Navigation */}
@@ -267,7 +274,7 @@ const ManualHardwareInput: React.FC<ManualHardwareInputProps> = ({
               Previous
             </button>
 
-            {currentStep < steps.length - 1 ? (
+            {currentStep < 2 ? (
               <button
                 onClick={() => setCurrentStep(currentStep + 1)}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
