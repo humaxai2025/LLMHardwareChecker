@@ -113,7 +113,10 @@ export default function HomePage() {
   };
 
   const getCapabilityLevel = () => {
-    if (!state.recommender) return 'Unknown';
+    const defaultLevel = { label: 'Unknown', color: 'text-gray-600', bg: 'bg-gray-100' };
+    
+    if (!state.recommender) return defaultLevel;
+    
     const level = state.recommender.getSystemCapabilityLevel();
     const levelMap = {
       low: { label: 'Entry Level', color: 'text-orange-600', bg: 'bg-orange-100' },
@@ -121,7 +124,7 @@ export default function HomePage() {
       high: { label: 'High End', color: 'text-green-600', bg: 'bg-green-100' },
       premium: { label: 'Premium', color: 'text-purple-600', bg: 'bg-purple-100' }
     };
-    return levelMap[level] || levelMap.low;
+    return levelMap[level] || defaultLevel;
   };
 
   return (
