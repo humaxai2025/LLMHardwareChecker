@@ -66,12 +66,29 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
     }
   };
 
-  const generatePDFReport = async () => {
+  // Function to wait for fonts to load
+  const waitForFontsToLoad = async (): Promise<void> => {
+    if ('fonts' in document) {
+      try {
+        await document.fonts.ready;
+        // Additional wait to ensure fonts are fully rendered
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        console.warn('Font loading check failed:', error);
+        // Fallback wait
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    } else {
+      // Fallback for browsers without document.fonts
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  };
+
+  const generatePDFReportOptimized = async () => {
     setIsGenerating(true);
     toast.loading('Generating PDF report...', { id: 'pdf-report' });
 
     try {
-      // Create a temporary div with the report content
       const reportGenerator = new ReportGenerator({
         systemInfo,
         recommendations,
@@ -79,43 +96,89 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
         timestamp: new Date()
       });
 
-      const htmlContent = reportGenerator.generateHTMLReport();
+      // Generate HTML content with PDF-optimized styles
+      let htmlContent = reportGenerator.generateHTMLReport();
       
-      // Create temporary element for PDF generation
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = htmlContent;
-      tempDiv.style.position = 'fixed';
-      tempDiv.style.top = '-9999px';
-      tempDiv.style.left = '-9999px';
-      tempDiv.style.width = '210mm'; // A4 width
-      tempDiv.style.backgroundColor = 'white';
-      document.body.appendChild(tempDiv);
+      // Replace the CSS with PDF-optimized version
+      htmlContent = htmlContent.replace(
+        /<style>[\s\S]*?<\/style>/,
+        `<style>${getPDFOptimizedCSS()}</style>`
+      );
 
-      // Wait for content to render
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Create temporary iframe for better rendering
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.top = '-9999px';
+      iframe.style.left = '-9999px';
+      iframe.style.width = '794px'; // A4 width
+      iframe.style.height = '1123px'; // A4 height
+      iframe.style.border = 'none';
+      iframe.style.backgroundColor = 'white';
+      
+      document.body.appendChild(iframe);
+      
+      // Write content to iframe
+      iframe.contentDocument?.open();
+      iframe.contentDocument?.write(htmlContent);
+      iframe.contentDocument?.close();
 
-      // Generate PDF using html2canvas and jsPDF
-      const canvas = await html2canvas(tempDiv, {
+      // Wait for fonts and content to load
+      await waitForFontsToLoad();
+      
+      // Additional wait for iframe content
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const iframeDocument = iframe.contentDocument;
+      const iframeBody = iframeDocument?.body;
+
+      if (!iframeBody) {
+        throw new Error('Failed to access iframe content');
+      }
+
+      // Generate PDF using html2canvas with optimized settings
+      const canvas = await html2canvas(iframeBody, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
-        width: 794, // A4 width in pixels at 96 DPI
-        height: Math.max(tempDiv.scrollHeight, 1123) // A4 height minimum
+        width: 794,
+        height: iframeBody.scrollHeight,
+        logging: false,
+        imageTimeout: 15000,
+        foreignObjectRendering: true,
+        ignoreElements: (element) => {
+          // Ignore certain elements that cause issues
+          return element.classList?.contains('copy-btn') || false;
+        }
       });
 
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'px',
-        format: [794, canvas.height]
-      });
+      // Calculate dimensions for PDF
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
 
-      pdf.addImage(imgData, 'PNG', 0, 0, 794, canvas.height);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      let position = 0;
+
+      // Add image to PDF
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // Add additional pages if needed
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Save PDF
       pdf.save(`llm-compatibility-report-${new Date().toISOString().split('T')[0]}.pdf`);
 
       // Cleanup
-      document.body.removeChild(tempDiv);
+      document.body.removeChild(iframe);
 
       setGeneratedReports(prev => ({ ...prev, pdf: true }));
       toast.success('PDF report downloaded!', { id: 'pdf-report' });
@@ -125,6 +188,483 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // PDF-optimized CSS that replaces Google Fonts with system fonts
+  const getPDFOptimizedCSS = (): string => {
+    return `
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --primary-50: #eff6ff;
+    --primary-100: #dbeafe;
+    --primary-500: #3b82f6;
+    --primary-600: #2563eb;
+    --primary-700: #1d4ed8;
+    --primary-900: #1e3a8a;
+    
+    --success-50: #ecfdf5;
+    --success-500: #10b981;
+    --success-600: #059669;
+    
+    --warning-50: #fffbeb;
+    --warning-500: #f59e0b;
+    --warning-600: #d97706;
+    
+    --error-50: #fef2f2;
+    --error-500: #ef4444;
+    --error-600: #dc2626;
+    
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+    
+    --border-radius-sm: 0.375rem;
+    --border-radius-md: 0.5rem;
+    --border-radius-lg: 0.75rem;
+    --border-radius-xl: 1rem;
+    --border-radius-2xl: 1.5rem;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    line-height: 1.6;
+    color: #1f2937;
+    background: white;
+    font-size: 14px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.container {
+    max-width: 100%;
+    margin: 0;
+    padding: 20px;
+    background: white;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 30px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.header h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+}
+
+.header .subtitle {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    font-weight: 400;
+    letter-spacing: 0.025em;
+}
+
+.section {
+    margin-bottom: 30px;
+    padding: 25px;
+    background: #f9fafb;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    page-break-inside: avoid;
+}
+
+.section h2 {
+    color: #1d4ed8;
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: -0.025em;
+}
+
+.specs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.spec-item {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #3b82f6;
+    border: 1px solid #e5e7eb;
+    page-break-inside: avoid;
+}
+
+.spec-label {
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: 8px;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.spec-value {
+    color: #111827;
+    font-size: 1.1rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.summary-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.stat-card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    border: 1px solid #e5e7eb;
+    page-break-inside: avoid;
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #2563eb;
+    margin-bottom: 8px;
+    line-height: 1;
+    letter-spacing: -0.05em;
+}
+
+.stat-label {
+    color: #6b7280;
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: 0.025em;
+}
+
+.model-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 15px 0;
+    page-break-inside: avoid;
+}
+
+.model-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.model-name {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #111827;
+    flex: 1;
+    letter-spacing: -0.025em;
+}
+
+.model-domain {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.performance-tier {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 25px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin: 12px 0;
+    letter-spacing: 0.025em;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.performance-tier.excellent {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+}
+
+.performance-tier.good {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+}
+
+.performance-tier.basic {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+}
+
+.requirements {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 10px;
+    margin: 15px 0;
+    padding: 15px;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.req-item {
+    text-align: center;
+    padding: 12px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+.req-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-bottom: 4px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.req-value {
+    font-weight: 600;
+    color: #111827;
+    font-size: 0.875rem;
+}
+
+.installation-methods {
+    margin-top: 20px;
+    padding: 20px;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.install-method {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 12px 0;
+    page-break-inside: avoid;
+}
+
+.install-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.install-title {
+    font-weight: 600;
+    color: #111827;
+    font-size: 1.1rem;
+    letter-spacing: -0.025em;
+}
+
+.install-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.install-badge.easy {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.install-badge.intermediate {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.install-badge.advanced {
+    background: #fecaca;
+    color: #991b1b;
+}
+
+.install-command {
+    background: #1f2937;
+    color: #f9fafb;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin: 12px 0;
+    overflow-wrap: break-word;
+    word-break: break-all;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.install-command::before {
+    content: '$ ';
+    color: #10b981;
+    font-weight: 600;
+}
+
+.install-note {
+    background: #eff6ff;
+    border-left: 4px solid #3b82f6;
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+.insufficient-hardware {
+    background: linear-gradient(135deg, #fecaca, #fca5a5);
+    border: 1px solid #ef4444;
+    border-radius: 12px;
+    padding: 25px;
+    margin: 25px 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.insufficient-hardware h3 {
+    color: #991b1b;
+    margin-bottom: 15px;
+    font-weight: 700;
+}
+
+.cloud-solutions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 15px;
+}
+
+.cloud-solution {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #3b82f6;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    page-break-inside: avoid;
+}
+
+.cloud-solution h4 {
+    color: #111827;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.cloud-solution p {
+    color: #6b7280;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.footer {
+    text-align: center;
+    padding: 25px;
+    background: #f9fafb;
+    border-radius: 8px;
+    margin-top: 30px;
+    color: #6b7280;
+    border: 1px solid #e5e7eb;
+}
+
+.tips-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.tip-card {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #10b981;
+    border: 1px solid #e5e7eb;
+    page-break-inside: avoid;
+}
+
+.tip-card h4 {
+    color: #111827;
+    margin-bottom: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+}
+
+.tip-card ul {
+    margin-left: 20px;
+    color: #4b5563;
+}
+
+.tip-card li {
+    margin-bottom: 6px;
+    line-height: 1.6;
+}
+
+/* Hide copy buttons in PDF */
+.copy-btn {
+    display: none !important;
+}
+
+/* Ensure proper page breaks */
+.model-card, .install-method, .tip-card, .spec-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+/* Print-specific styles */
+@media print {
+    body { 
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+}
+`;
   };
 
   const copyReportSummary = async () => {
@@ -245,7 +785,7 @@ For detailed installation instructions and optimization tips, download the full 
                     <DocumentArrowDownIcon className="h-6 w-6 text-red-600 mr-3" />
                     <div>
                       <h4 className="font-semibold text-gray-900">PDF Report</h4>
-                      <p className="text-sm text-gray-600">Printable document format</p>
+                      <p className="text-sm text-gray-600">High-quality printable document</p>
                     </div>
                   </div>
                   {generatedReports.pdf && (
@@ -263,15 +803,22 @@ For detailed installation instructions and optimization tips, download the full 
                   <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs font-medium">
                     Offline
                   </span>
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                    High Quality
+                  </span>
                 </div>
                 
                 <button
-                  onClick={generatePDFReport}
+                  onClick={generatePDFReportOptimized}
                   disabled={isGenerating}
                   className="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {isGenerating ? 'Generating...' : 'Download PDF Report'}
+                  {isGenerating ? 'Generating PDF...' : 'Download PDF Report'}
                 </button>
+                
+                <p className="text-xs text-gray-500 mt-2">
+                  ✨ Optimized fonts and formatting for professional PDFs
+                </p>
               </div>
 
               {/* Quick Summary */}
@@ -334,8 +881,8 @@ For detailed installation instructions and optimization tips, download the full 
               <h4 className="font-semibold text-blue-800 mb-2">📁 File Information</h4>
               <div className="text-sm text-blue-700 space-y-1">
                 <p>• HTML: ~200-500 KB, works in any web browser</p>
-                <p>• PDF: ~1-3 MB, compatible with all PDF viewers</p>
-                <p>• Reports include all analysis data and instructions</p>
+                <p>• PDF: ~1-3 MB, optimized fonts and formatting</p>
+                <p>• Professional layout suitable for printing</p>
                 <p>• Generated files are completely offline and private</p>
               </div>
             </div>
