@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import {
   DocumentArrowDownIcon,
   DocumentTextIcon,
@@ -68,60 +66,295 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
 
   const generatePDFReport = async () => {
     setIsGenerating(true);
-    toast.loading('Generating PDF report...', { id: 'pdf-report' });
+    toast.loading('Generating high-quality PDF report...', { id: 'pdf-report' });
 
     try {
-      // Create a temporary div with the report content
-      const reportGenerator = new ReportGenerator({
-        systemInfo,
-        recommendations,
-        recommender,
-        timestamp: new Date()
-      });
-
-      const htmlContent = reportGenerator.generateHTMLReport();
-      
-      // Create temporary element for PDF generation
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = htmlContent;
-      tempDiv.style.position = 'fixed';
-      tempDiv.style.top = '-9999px';
-      tempDiv.style.left = '-9999px';
-      tempDiv.style.width = '210mm'; // A4 width
-      tempDiv.style.backgroundColor = 'white';
-      document.body.appendChild(tempDiv);
-
-      // Wait for content to render
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Generate PDF using html2canvas and jsPDF
-      const canvas = await html2canvas(tempDiv, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        width: 794, // A4 width in pixels at 96 DPI
-        height: Math.max(tempDiv.scrollHeight, 1123) // A4 height minimum
-      });
-
-      const imgData = canvas.toDataURL('image/png');
+      // Create PDF with proper formatting
+      const { jsPDF } = await import('jspdf');
       const pdf = new jsPDF({
         orientation: 'portrait',
-        unit: 'px',
-        format: [794, canvas.height]
+        unit: 'mm',
+        format: 'a4'
       });
 
-      pdf.addImage(imgData, 'PNG', 0, 0, 794, canvas.height);
+      // Define colors and fonts
+      const colors = {
+        primary: [59, 130, 246], // blue-500
+        secondary: [107, 114, 128], // gray-500
+        success: [16, 185, 129], // green-500
+        warning: [245, 158, 11], // yellow-500
+        danger: [239, 68, 68], // red-500
+        text: [31, 41, 55], // gray-800
+        lightGray: [249, 250, 251] // gray-50
+      };
+
+      let yPosition = 20;
+      const pageWidth = 210; // A4 width in mm
+      const marginLeft = 20;
+      const marginRight = 20;
+      const contentWidth = pageWidth - marginLeft - marginRight;
+
+      // Helper functions
+      const addText = (text: string, x: number, y: number, options: any = {}) => {
+        const fontSize = options.fontSize || 10;
+        const fontStyle = options.fontStyle || 'normal';
+        const align = options.align || 'left';
+        const color = options.color || colors.text;
+        
+        pdf.setFontSize(fontSize);
+        pdf.setFont('helvetica', fontStyle);
+        pdf.setTextColor(color[0], color[1], color[2]);
+        pdf.text(text, x, y, { align });
+        return y + (fontSize * 0.35) + (options.spacing || 2);
+      };
+
+      const addHeading = (text: string, level: number = 1) => {
+        const fontSize = level === 1 ? 18 : level === 2 ? 14 : 12;
+        const spacing = level === 1 ? 8 : 6;
+        yPosition = addText(text, marginLeft, yPosition, {
+          fontSize,
+          fontStyle: 'bold',
+          color: colors.primary,
+          spacing
+        });
+        return yPosition;
+      };
+
+      const addLine = () => {
+        pdf.setDrawColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
+        pdf.setLineWidth(0.2);
+        pdf.line(marginLeft, yPosition, pageWidth - marginRight, yPosition);
+        yPosition += 5;
+      };
+
+      const checkPageBreak = (spaceNeeded: number = 20) => {
+        if (yPosition + spaceNeeded > 280) { // Near bottom of A4
+          pdf.addPage();
+          yPosition = 20;
+        }
+      };
+
+      const addSection = (title: string, content: string[]) => {
+        checkPageBreak(30);
+        addHeading(title, 2);
+        addLine();
+        
+        content.forEach(line => {
+          checkPageBreak();
+          if (line.startsWith('•')) {
+            yPosition = addText(line, marginLeft + 5, yPosition);
+          } else if (line.startsWith('  -')) {
+            yPosition = addText(line, marginLeft + 10, yPosition, { fontSize: 9 });
+          } else {
+            yPosition = addText(line, marginLeft, yPosition);
+          }
+        });
+        yPosition += 5;
+      };
+
+      // Title Page
+      pdf.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+      pdf.rect(0, 0, pageWidth, 60, 'F');
+      
+      yPosition = addText('🤖 LLM Hardware Compatibility Report', pageWidth/2, 25, {
+        fontSize: 20,
+        fontStyle: 'bold',
+        color: [255, 255, 255],
+        align: 'center'
+      });
+      
+      yPosition = addText(`Generated on ${new Date().toLocaleDateString()}`, pageWidth/2, yPosition + 5, {
+        fontSize: 12,
+        color: [255, 255, 255],
+        align: 'center'
+      });
+
+      yPosition = 80;
+
+      // System Specifications
+      addHeading('System Specifications');
+      addLine();
+      
+      const systemSpecs = [
+        `Operating System: ${systemInfo.os} (${systemInfo.architecture})`,
+        `Processor: ${systemInfo.processor}`,
+        `CPU Cores: ${systemInfo.cpuCores}`,
+        `Memory (RAM): ${systemInfo.totalRamGB} GB total (${systemInfo.availableRamGB} GB available)`,
+        `Storage: ${systemInfo.freeStorageGB} GB free / ${systemInfo.totalStorageGB} GB total`,
+      ];
+
+      if (systemInfo.gpus && systemInfo.gpus.length > 0) {
+        systemInfo.gpus.forEach((gpu, index) => {
+          const vramInfo = typeof gpu.vramGB === 'number' ? `${gpu.vramGB} GB VRAM` : gpu.vramGB;
+          systemSpecs.push(`GPU ${index + 1}: ${gpu.name} (${vramInfo})`);
+        });
+      } else {
+        systemSpecs.push('GPU: None detected');
+      }
+
+      systemSpecs.forEach(spec => {
+        checkPageBreak();
+        yPosition = addText(`• ${spec}`, marginLeft, yPosition);
+      });
+
+      yPosition += 10;
+
+      // Compatibility Summary
+      const suitableModels = [
+        ...recommendations.excellent,
+        ...recommendations.good,
+        ...recommendations.basic
+      ];
+
+      addHeading('Compatibility Summary');
+      addLine();
+
+      const summaryStats = [
+        `Compatible Models: ${suitableModels.length}`,
+        `Excellent Performance: ${recommendations.excellent.length}`,
+        `Good Performance: ${recommendations.good.length}`,
+        `Basic Performance: ${recommendations.basic.length}`,
+        `Not Suitable: ${recommendations.not_suitable.length}`
+      ];
+
+      summaryStats.forEach(stat => {
+        checkPageBreak();
+        yPosition = addText(`• ${stat}`, marginLeft, yPosition);
+      });
+
+      yPosition += 10;
+
+      // Model Recommendations
+      if (suitableModels.length > 0) {
+        const categories = [
+          { name: 'Excellent Performance', models: recommendations.excellent, color: colors.success },
+          { name: 'Good Performance', models: recommendations.good, color: colors.warning },
+          { name: 'Basic Performance', models: recommendations.basic, color: colors.danger }
+        ];
+
+        categories.forEach(category => {
+          if (category.models.length > 0) {
+            checkPageBreak(40);
+            yPosition = addText(category.name, marginLeft, yPosition, {
+              fontSize: 14,
+              fontStyle: 'bold',
+              color: category.color
+            });
+            addLine();
+
+            category.models.slice(0, 5).forEach(model => { // Limit to 5 models per category for space
+              checkPageBreak(25);
+              
+              // Model name
+              yPosition = addText(model.name, marginLeft, yPosition, {
+                fontSize: 12,
+                fontStyle: 'bold'
+              });
+
+              // Model details
+              const details = [
+                `  Parameters: ${model.specs.parameters}`,
+                `  RAM Required: ${model.specs.min_ram_gb}-${model.specs.recommended_ram_gb} GB`,
+                `  VRAM Required: ${model.specs.min_vram_gb}-${model.specs.recommended_vram_gb} GB`,
+                `  Description: ${model.specs.description}`
+              ];
+
+              if (model.specs.domain) {
+                details.push(`  Domain: ${model.specs.domain}`);
+              }
+
+              // Installation command
+              if (model.specs.install_methods.ollama) {
+                details.push(`  Quick Install: ${model.specs.install_methods.ollama.command}`);
+              }
+
+              details.forEach(detail => {
+                checkPageBreak();
+                yPosition = addText(detail, marginLeft, yPosition, { fontSize: 9 });
+              });
+
+              yPosition += 3;
+            });
+
+            if (category.models.length > 5) {
+              yPosition = addText(`... and ${category.models.length - 5} more models`, marginLeft, yPosition, {
+                fontSize: 9,
+                color: colors.secondary
+              });
+            }
+
+            yPosition += 5;
+          }
+        });
+      } else {
+        // Insufficient hardware section
+        addSection('Insufficient Hardware Detected', [
+          'Your system does not meet the minimum requirements for running local LLMs efficiently.',
+          '',
+          'Recommended cloud-based solutions:',
+          '• ChatGPT: https://chat.openai.com',
+          '• Claude: https://claude.ai',
+          '• Google Bard: https://bard.google.com',
+          '• Perplexity AI: https://perplexity.ai'
+        ]);
+      }
+
+      // Installation Platforms
+      checkPageBreak(50);
+      addHeading('Installation Platforms');
+      addLine();
+
+      const platforms = recommender.getInstallationPlatforms();
+      platforms.forEach(platform => {
+        checkPageBreak(20);
+        yPosition = addText(platform.name, marginLeft, yPosition, {
+          fontSize: 12,
+          fontStyle: 'bold'
+        });
+        yPosition = addText(`  ${platform.description}`, marginLeft, yPosition, { fontSize: 9 });
+        yPosition = addText(`  Best for: ${platform.bestFor}`, marginLeft, yPosition, { fontSize: 9 });
+        yPosition += 2;
+      });
+
+      // Optimization Tips
+      checkPageBreak(50);
+      addHeading('Optimization Tips');
+      addLine();
+
+      const tips = recommender.getOptimizationTips();
+      tips.slice(0, 10).forEach(tip => { // Limit tips for space
+        checkPageBreak();
+        yPosition = addText(`• ${tip.replace(/^[🔧💾🎮💻🍎🐧🪟📱⚡🗑️❌✅🚀💡⚙️🔋☁️📁]+\s*/, '')}`, marginLeft, yPosition, { fontSize: 9 });
+      });
+
+      // Footer
+      checkPageBreak(30);
+      yPosition = Math.max(yPosition + 20, 250);
+      pdf.setDrawColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
+      pdf.setLineWidth(0.5);
+      pdf.line(marginLeft, yPosition, pageWidth - marginRight, yPosition);
+      yPosition += 10;
+      
+      yPosition = addText('Generated by LLM Hardware Compatibility Checker', pageWidth/2, yPosition, {
+        fontSize: 10,
+        align: 'center',
+        color: colors.secondary
+      });
+      
+      yPosition = addText(`Report created on ${new Date().toLocaleString()}`, pageWidth/2, yPosition, {
+        fontSize: 8,
+        align: 'center',
+        color: colors.secondary
+      });
+
+      // Save the PDF
       pdf.save(`llm-compatibility-report-${new Date().toISOString().split('T')[0]}.pdf`);
 
-      // Cleanup
-      document.body.removeChild(tempDiv);
-
       setGeneratedReports(prev => ({ ...prev, pdf: true }));
-      toast.success('PDF report downloaded!', { id: 'pdf-report' });
+      toast.success('High-quality PDF report downloaded!', { id: 'pdf-report' });
     } catch (error) {
       console.error('Failed to generate PDF report:', error);
-      toast.error('Failed to generate PDF report. Try HTML format instead.', { id: 'pdf-report' });
+      toast.error('Failed to generate PDF report. Please try again.', { id: 'pdf-report' });
     } finally {
       setIsGenerating(false);
     }
@@ -245,7 +478,7 @@ For detailed installation instructions and optimization tips, download the full 
                     <DocumentArrowDownIcon className="h-6 w-6 text-red-600 mr-3" />
                     <div>
                       <h4 className="font-semibold text-gray-900">PDF Report</h4>
-                      <p className="text-sm text-gray-600">Printable document format</p>
+                      <p className="text-sm text-gray-600">High-quality document with selectable text</p>
                     </div>
                   </div>
                   {generatedReports.pdf && (
@@ -255,7 +488,10 @@ For detailed installation instructions and optimization tips, download the full 
                 
                 <div className="flex flex-wrap gap-2 mb-3">
                   <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-medium">
-                    Printable
+                    High Quality
+                  </span>
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                    Selectable Text
                   </span>
                   <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-medium">
                     Shareable
