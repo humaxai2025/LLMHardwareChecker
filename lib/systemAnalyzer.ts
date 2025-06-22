@@ -126,7 +126,7 @@ export class SystemAnalyzer {
     try {
       // WebGL-based GPU detection
       const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl') as WebGLRenderingContext | null;
       
       if (gl) {
         const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
