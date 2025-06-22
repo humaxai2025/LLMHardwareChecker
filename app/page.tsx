@@ -13,9 +13,18 @@ import {
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
 
-import { SystemInfo } from '../lib/systemAnalyzer';
+// Import unified types
+import {
+  SystemInfo,
+  Recommendations,
+  LLMRecommender as LLMRecommenderInterface,
+  AnalysisState,
+  SystemCapabilityLevel,
+  CAPABILITY_LEVELS
+} from '../types';
+
+// Import actual implementation classes
 import { LLMRecommender } from '../lib/llmRecommender';
-import { Recommendations } from '../lib/llmDatabase';
 import { analyzeClientSystem } from '../lib/clientAnalyzer';
 
 // Components
@@ -28,18 +37,6 @@ import ReportDownload from '../components/ReportDownload';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackButton from '../components/FeedbackButton';
 import ManualHardwareInput from '../components/ManualHardwareInput';
-
-interface AnalysisState {
-  systemInfo: SystemInfo | null;
-  recommendations: Recommendations | null;
-  recommender: LLMRecommender | null;
-  isLoading: boolean;
-  isAnalyzing: boolean;
-  error: string | null;
-  analysisComplete: boolean;
-  showManualInput: boolean;
-  browserDetected: Partial<SystemInfo> | null;
-}
 
 export default function HomePage() {
   const [isMounted, setIsMounted] = useState(false);
@@ -60,7 +57,7 @@ export default function HomePage() {
     setIsMounted(true);
   }, []);
 
-  const detectBrowserCapabilities = async () => {
+  const detectBrowserCapabilities = async (): Promise<Partial<SystemInfo> | null> => {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') {
       return null;
     }
@@ -79,19 +76,24 @@ export default function HomePage() {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       };
 
-      // Try to detect GPU
-      const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') as WebGLRenderingContext | null;
-      if (gl) {
-        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-        if (debugInfo) {
-          const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) as string;
-          browserDetected.gpus = [{
-            name: renderer,
-            vramGB: 'Unknown',
-            type: 'Detected via WebGL'
-          }];
+      // Try to detect GPU via WebGL
+      try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') as WebGLRenderingContext | null;
+        if (gl) {
+          const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+          if (debugInfo) {
+            const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) as string;
+            browserDetected.gpus = [{
+              name: renderer || 'Unknown GPU',
+              vramGB: 'Unknown',
+              type: 'Detected via WebGL'
+            }];
+          }
         }
+      } catch (gpuError) {
+        console.warn('GPU detection failed:', gpuError);
+        browserDetected.gpus = [];
       }
 
       return browserDetected;
@@ -101,7 +103,7 @@ export default function HomePage() {
     }
   };
 
-  const startAutomaticAnalysis = async () => {
+  const startAutomaticAnalysis = async (): Promise<void> => {
     setState(prev => ({ ...prev, isLoading: true, isAnalyzing: true, error: null }));
     
     try {
@@ -109,7 +111,7 @@ export default function HomePage() {
       
       const browserDetected = await detectBrowserCapabilities();
       
-      // Show limitation warning
+      // Show limitation warning and manual input
       setState(prev => ({ 
         ...prev, 
         browserDetected,
@@ -122,29 +124,34 @@ export default function HomePage() {
       
     } catch (error) {
       console.error('Browser detection failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to detect browser capabilities.';
+      
       setState(prev => ({
         ...prev,
         isLoading: false,
         isAnalyzing: false,
-        error: 'Failed to detect browser capabilities.',
+        error: errorMessage,
       }));
       
       toast.error('Detection failed. Please try manual input.', { id: 'analysis' });
     }
   };
 
-  const handleManualInput = async (systemInfo: SystemInfo) => {
+  const handleManualInput = async (systemInfo: SystemInfo): Promise<void> => {
     setState(prev => ({ ...prev, isLoading: true, isAnalyzing: true, error: null }));
     
     try {
       toast.loading('Generating recommendations for your system...', { id: 'analysis' });
       
+      // Small delay for better UX
       await new Promise(resolve => setTimeout(resolve, 1000));
       
+      // Create recommender instance and get recommendations
       const recommender = new LLMRecommender(systemInfo);
       const recommendations = recommender.getRecommendations();
       
-      setState({
+      setState(prev => ({
+        ...prev,
         systemInfo,
         recommendations,
         recommender,
@@ -154,24 +161,28 @@ export default function HomePage() {
         analysisComplete: true,
         showManualInput: false,
         browserDetected: null,
-      });
+      }));
       
       toast.success('Analysis complete with your hardware specs!', { id: 'analysis' });
       
     } catch (error) {
       console.error('Analysis failed:', error);
+      const errorMessage = error instanceof Error 
+        ? `Failed to analyze system: ${error.message}`
+        : 'Failed to analyze system: Unknown error';
+      
       setState(prev => ({
         ...prev,
         isLoading: false,
         isAnalyzing: false,
-        error: `Failed to analyze system: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: errorMessage,
       }));
       
       toast.error('Analysis failed. Please try again.', { id: 'analysis' });
     }
   };
 
-  const restartAnalysis = () => {
+  const restartAnalysis = (): void => {
     setState({
       systemInfo: null,
       recommendations: null,
@@ -183,9 +194,12 @@ export default function HomePage() {
       showManualInput: false,
       browserDetected: null,
     });
+    
+    // Clear any existing toasts
+    toast.dismiss();
   };
 
-  const getSuitableModelsCount = () => {
+  const getSuitableModelsCount = (): number => {
     if (!state.recommendations) return 0;
     return (
       state.recommendations.excellent.length +
@@ -194,19 +208,39 @@ export default function HomePage() {
     );
   };
 
-  const getCapabilityLevel = () => {
+  const getCapabilityLevel = (): { label: string; color: string; bg: string } => {
     const defaultLevel = { label: 'Unknown', color: 'text-gray-600', bg: 'bg-gray-100' };
     
     if (!state.recommender) return defaultLevel;
     
-    const level = state.recommender.getSystemCapabilityLevel();
-    const levelMap = {
-      low: { label: 'Entry Level', color: 'text-orange-600', bg: 'bg-orange-100' },
-      medium: { label: 'Mid Range', color: 'text-blue-600', bg: 'bg-blue-100' },
-      high: { label: 'High End', color: 'text-green-600', bg: 'bg-green-100' },
-      premium: { label: 'Premium', color: 'text-purple-600', bg: 'bg-purple-100' }
-    };
-    return levelMap[level] || defaultLevel;
+    try {
+      const level: SystemCapabilityLevel = state.recommender.getSystemCapabilityLevel();
+      const levelInfo = CAPABILITY_LEVELS[level];
+      
+      const colorMap = {
+        orange: { color: 'text-orange-600', bg: 'bg-orange-100' },
+        blue: { color: 'text-blue-600', bg: 'bg-blue-100' },
+        green: { color: 'text-green-600', bg: 'bg-green-100' },
+        purple: { color: 'text-purple-600', bg: 'bg-purple-100' }
+      };
+      
+      const colors = colorMap[levelInfo.color as keyof typeof colorMap] || colorMap.blue;
+      
+      return {
+        label: levelInfo.label,
+        ...colors
+      };
+    } catch (error) {
+      console.warn('Failed to get capability level:', error);
+      return defaultLevel;
+    }
+  };
+
+  const handleError = (error: unknown, context: string): void => {
+    console.error(`Error in ${context}:`, error);
+    const errorMessage = error instanceof Error ? error.message : `Unknown error in ${context}`;
+    setState(prev => ({ ...prev, error: errorMessage, isLoading: false, isAnalyzing: false }));
+    toast.error(errorMessage);
   };
 
   return (
@@ -290,15 +324,23 @@ export default function HomePage() {
               >
                 <div className="flex">
                   <ExclamationTriangleIcon className="h-6 w-6 text-red-400 mr-3 flex-shrink-0" />
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-lg font-medium text-red-800 mb-2">Analysis Failed</h3>
                     <p className="text-red-700 mb-4">{state.error}</p>
-                    <button
-                      onClick={startAutomaticAnalysis}
-                      className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
-                    >
-                      Try Again
-                    </button>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={startAutomaticAnalysis}
+                        className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
+                      >
+                        Try Again
+                      </button>
+                      <button
+                        onClick={restartAnalysis}
+                        className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors"
+                      >
+                        Start Over
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -316,7 +358,7 @@ export default function HomePage() {
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
                   <div className="flex">
                     <ExclamationTriangleIcon className="h-6 w-6 text-yellow-400 mr-3 flex-shrink-0" />
-                    <div>
+                    <div className="flex-1">
                       <h3 className="text-lg font-medium text-yellow-800 mb-2">Browser Security Limitations Detected</h3>
                       <p className="text-yellow-700 mb-4">
                         For security reasons, browsers cannot access detailed hardware information like your actual RAM amount or processor model. 
@@ -365,17 +407,17 @@ export default function HomePage() {
                   Analyzing Your System
                 </h2>
                 <p className="text-gray-600 max-w-md mx-auto mb-4">
-                  We're detecting your hardware specifications and checking compatibility 
+                  We're processing your hardware specifications and checking compatibility 
                   with popular LLM models. This will take just a moment.
                 </p>
-                {isMounted && (
+                {isMounted && typeof navigator !== 'undefined' && (
                   <div className="text-sm text-blue-600 bg-blue-50 rounded-lg p-3 max-w-lg mx-auto">
-                    <div className="mb-2"><strong>🔍 Analyzing your browser client:</strong></div>
+                    <div className="mb-2"><strong>🔍 Processing your specifications:</strong></div>
                     <div>Platform: {navigator.platform}</div>
                     <div>Browser: {navigator.userAgent.split(' ')[0]}</div>
                     <div>CPU Cores: {navigator.hardwareConcurrency}</div>
                     <div className="text-xs mt-2 text-blue-500">
-                      ✅ This is YOUR device, not a server!
+                      ✅ Analysis running locally in your browser!
                     </div>
                   </div>
                 )}
@@ -404,18 +446,20 @@ export default function HomePage() {
                           <p className="text-green-100">Your system has been analyzed successfully</p>
                         </div>
                       </div>
-                      <button
-                        onClick={restartAnalysis}
-                        className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors mr-3"
-                      >
-                        Edit Hardware Specs
-                      </button>
-                      <button
-                        onClick={restartAnalysis}
-                        className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors"
-                      >
-                        Run Again
-                      </button>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setState(prev => ({ ...prev, showManualInput: true, analysisComplete: false }))}
+                          className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors text-sm"
+                        >
+                          Edit Hardware Specs
+                        </button>
+                        <button
+                          onClick={restartAnalysis}
+                          className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors text-sm"
+                        >
+                          Start Over
+                        </button>
+                      </div>
                     </div>
                   </div>
                   
