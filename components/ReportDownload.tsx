@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import {
   DocumentArrowDownIcon,
   DocumentTextIcon,
@@ -44,8 +42,7 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
       });
 
       const htmlContent = reportGenerator.generateHTMLReport();
-      
-      // Create blob and download
+
       const blob = new Blob([htmlContent], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -66,12 +63,12 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
     }
   };
 
+  // ---- UPDATED PDF GENERATOR FUNCTION ----
   const generatePDFReport = async () => {
     setIsGenerating(true);
     toast.loading('Generating PDF report...', { id: 'pdf-report' });
 
     try {
-      // Create a proper PDF using jsPDF directly instead of html2canvas
       const { jsPDF } = await import('jspdf');
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -79,215 +76,213 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
         format: 'a4'
       });
 
-      // PDF styling
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      const contentWidth = pageWidth - (margin * 2);
-      let yPosition = margin;
+      const margin = 15;
+      const contentWidth = pageWidth - margin * 2;
+      let y = margin;
 
-      // Helper function to add text with proper wrapping
-      const addText = (text: string, fontSize = 10, isBold = false) => {
-        pdf.setFontSize(fontSize);
-        pdf.setFont('helvetica', isBold ? 'bold' : 'normal');
+      // Helper to add headings
+      const heading = (text, size = 16) => {
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(size);
+        pdf.text(text, margin, y);
+        y += size * 0.7;
+      };
+      // Helper to add subheadings
+      const subheading = (text, size = 13) => {
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(size);
+        pdf.text(text, margin, y);
+        y += size * 0.7;
+      };
+      // Helper to add normal text
+      const para = (text, size = 11) => {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(size);
         const lines = pdf.splitTextToSize(text, contentWidth);
-        
-        // Check if we need a new page
-        if (yPosition + (lines.length * fontSize * 0.5) > pageHeight - margin) {
+        pdf.text(lines, margin, y);
+        y += lines.length * size * 0.5 + 2;
+      };
+      // Helper to add a table row
+      const tableRow = (columns, colWidths, size = 10, bold = false) => {
+        pdf.setFont('helvetica', bold ? 'bold' : 'normal');
+        pdf.setFontSize(size);
+        let x = margin;
+        columns.forEach((col, i) => {
+          pdf.text(String(col), x, y, { maxWidth: colWidths[i] - 2 });
+          x += colWidths[i];
+        });
+        y += size * 0.6;
+      };
+      // New page if needed
+      const ensureSpace = rows => {
+        if (y > pageHeight - (rows * 8 + margin)) {
           pdf.addPage();
-          yPosition = margin;
+          y = margin;
         }
-        
-        pdf.text(lines, margin, yPosition);
-        yPosition += lines.length * fontSize * 0.5 + 5;
-        return yPosition;
       };
 
-      // Helper function to add a line
-      const addLine = () => {
-        if (yPosition > pageHeight - margin - 10) {
-          pdf.addPage();
-          yPosition = margin;
-        }
-        pdf.setDrawColor(200, 200, 200);
-        pdf.line(margin, yPosition, pageWidth - margin, yPosition);
-        yPosition += 5;
-      };
-
-      // Title
-      pdf.setFillColor(59, 130, 246); // Blue background
-      pdf.rect(0, 0, pageWidth, 40, 'F');
+      // TITLE & DATE
+      pdf.setFillColor(59, 130, 246); // blue bar
+      pdf.rect(0, 0, pageWidth, 20, 'F');
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(24);
+      pdf.setFontSize(18);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('LLM Hardware Compatibility Report', margin, 25);
-      
-      pdf.setFontSize(12);
+      pdf.text('LLM Hardware Compatibility Report', margin, 13);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, margin, 35);
-      
-      yPosition = 50;
+      pdf.setFontSize(11);
+      pdf.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - margin - 70, 13);
+      y = 25;
       pdf.setTextColor(0, 0, 0);
 
-      // System Specifications Section
-      addText('SYSTEM SPECIFICATIONS', 16, true);
-      addLine();
-      
-      addText(`Operating System: ${systemInfo.os} (${systemInfo.architecture})`, 12);
-      addText(`Processor: ${systemInfo.processor}`, 12);
-      addText(`CPU Cores: ${systemInfo.cpuCores} cores`, 12);
-      addText(`Memory (RAM): ${systemInfo.totalRamGB} GB total (${systemInfo.availableRamGB} GB available)`, 12);
-      addText(`Storage: ${systemInfo.freeStorageGB} GB free / ${systemInfo.totalStorageGB} GB total`, 12);
-      
+      // SYSTEM SPECS
+      heading('🖥️ System Specifications');
+      para(`OS: ${systemInfo.os} (${systemInfo.architecture})`);
+      para(`Processor: ${systemInfo.processor} (${systemInfo.cpuCores} cores)`);
+      para(`RAM: ${systemInfo.totalRamGB} GB total (${systemInfo.availableRamGB} GB available)`);
+      para(`Storage: ${systemInfo.freeStorageGB} GB free / ${systemInfo.totalStorageGB} GB total`);
       if (systemInfo.gpus && systemInfo.gpus.length > 0) {
-        systemInfo.gpus.forEach((gpu, index) => {
-          const vramInfo = typeof gpu.vramGB === 'number' ? `${gpu.vramGB} GB VRAM` : gpu.vramGB;
-          addText(`GPU ${index + 1}: ${gpu.name} (${vramInfo})`, 12);
+        systemInfo.gpus.forEach((gpu, i) => {
+          para(`GPU ${i + 1}: ${gpu.name} (${typeof gpu.vramGB === 'number' ? gpu.vramGB + ' GB VRAM' : gpu.vramGB})`);
         });
       } else {
-        addText('GPU: None detected', 12);
+        para('GPU: None detected');
       }
+      y += 2;
 
-      yPosition += 10;
+      // MODEL COMPATIBILITY MATRIX (as table)
+      heading('📊 Compatibility Matrix');
+      ensureSpace(6);
+      // Table header
+      tableRow(
+        ['Model', 'Params', 'Perf.', 'RAM GB', 'VRAM GB', 'Install'],
+        [40, 22, 18, 20, 22, 38],
+        10,
+        true
+      );
+      pdf.setDrawColor(200, 200, 200);
+      pdf.line(margin, y - 3, pageWidth - margin, y - 3);
 
-      // Compatibility Results Section
-      const suitableModels = [
+      const allModels = [
         ...recommendations.excellent,
         ...recommendations.good,
-        ...recommendations.basic
+        ...recommendations.basic,
+        ...recommendations.not_suitable,
       ];
 
-      addText('COMPATIBILITY RESULTS', 16, true);
-      addLine();
-      
-      addText(`Compatible Models: ${suitableModels.length}`, 12);
-      addText(`Excellent Performance: ${recommendations.excellent.length}`, 12);
-      addText(`Good Performance: ${recommendations.good.length}`, 12);
-      addText(`Basic Performance: ${recommendations.basic.length}`, 12);
-      addText(`Not Suitable: ${recommendations.not_suitable.length}`, 12);
+      for (const model of allModels) {
+        ensureSpace(1);
+        tableRow(
+          [
+            model.name,
+            model.specs.parameters,
+            model.compatibility.performance_tier,
+            `${model.specs.min_ram_gb}-${model.specs.recommended_ram_gb}`,
+            `${model.specs.min_vram_gb || '-'}-${model.specs.recommended_vram_gb || '-'}`,
+            (model.specs.install_methods.ollama?.command || '').replace('ollama run ', 'run ')
+          ],
+          [40, 22, 18, 20, 22, 38],
+          9,
+          false
+        );
+      }
+      y += 4;
 
-      yPosition += 10;
-
-      // Recommended Models Section
-      if (suitableModels.length > 0) {
-        addText('RECOMMENDED MODELS', 16, true);
-        addLine();
-
-        const categories = [
-          { title: 'EXCELLENT PERFORMANCE', models: recommendations.excellent, emoji: '🟢' },
-          { title: 'GOOD PERFORMANCE', models: recommendations.good, emoji: '🟡' },
-          { title: 'BASIC PERFORMANCE', models: recommendations.basic, emoji: '🟠' }
-        ];
-
-        categories.forEach(category => {
-          if (category.models.length > 0) {
-            addText(`${category.emoji} ${category.title}`, 14, true);
-            
-            category.models.slice(0, 5).forEach((model, index) => {
-              addText(`${index + 1}. ${model.name}`, 12, true);
-              addText(`   Parameters: ${model.specs.parameters}`, 10);
-              addText(`   Description: ${model.specs.description}`, 10);
-              addText(`   RAM Required: ${model.specs.min_ram_gb}-${model.specs.recommended_ram_gb} GB`, 10);
-              addText(`   VRAM Required: ${model.specs.min_vram_gb}-${model.specs.recommended_vram_gb} GB`, 10);
-              addText(`   Performance: ${model.compatibility.performance_tier}`, 10);
-              
-              // Installation command
-              if (model.specs.install_methods.ollama) {
-                addText(`   Quick Install: ${model.specs.install_methods.ollama.command}`, 10);
-              }
-              
-              if (model.compatibility.recommended_quant) {
-                addText(`   Recommended Quantization: ${model.compatibility.recommended_quant}`, 10);
-              }
-              
-              yPosition += 5;
-            });
-            
-            if (category.models.length > 5) {
-              addText(`   ... and ${category.models.length - 5} more models`, 10);
+      // RECOMMENDATIONS
+      heading('🤖 Model Recommendations');
+      const cats = [
+        { title: '🟢 Excellent', arr: recommendations.excellent },
+        { title: '🟡 Good', arr: recommendations.good },
+        { title: '🟠 Basic', arr: recommendations.basic },
+      ];
+      for (const cat of cats) {
+        if (cat.arr.length > 0) {
+          subheading(cat.title, 12);
+          cat.arr.forEach((model, idx) => {
+            para(`${idx + 1}. ${model.name} (${model.specs.parameters}) - ${model.compatibility.performance_tier}`);
+            para(`   RAM: ${model.specs.min_ram_gb}-${model.specs.recommended_ram_gb}GB, VRAM: ${model.specs.min_vram_gb || '-'}-${model.specs.recommended_vram_gb || '-'}`);
+            if (model.specs.install_methods.ollama) {
+              para(`   Ollama: ${model.specs.install_methods.ollama.command}`);
             }
-            
-            yPosition += 5;
-          }
-        });
-      } else {
-        // Insufficient Hardware Section
-        addText('INSUFFICIENT HARDWARE DETECTED', 16, true);
-        addLine();
-        
-        addText('Your system does not meet the minimum requirements for running local LLMs efficiently.', 12);
-        addText('', 12);
-        addText('RECOMMENDED CLOUD-BASED SOLUTIONS:', 14, true);
-        addText('• ChatGPT: https://chat.openai.com', 12);
-        addText('• Claude: https://claude.ai', 12);
-        addText('• Google Bard: https://bard.google.com', 12);
-        addText('• Perplexity AI: https://perplexity.ai', 12);
+            if (model.specs.install_methods.lm_studio) {
+              para(`   LM Studio: ${model.specs.install_methods.lm_studio.command || model.specs.install_methods.lm_studio.download_url || ''}`);
+            }
+            if (model.specs.install_methods.llamacpp) {
+              para(`   llama.cpp: ${model.specs.install_methods.llamacpp.command || model.specs.install_methods.llamacpp.download_url || ''}`);
+            }
+            if (model.specs.install_methods.huggingface) {
+              para(`   HuggingFace: ${model.specs.install_methods.huggingface.command || model.specs.install_methods.huggingface.download_url || ''}`);
+            }
+            if (model.compatibility.recommended_quant) {
+              para(`   Quantization: ${model.compatibility.recommended_quant}`);
+            }
+            y += 2;
+          });
+        }
       }
-
-      // Installation Platforms Section
-      if (yPosition < pageHeight - 60) {
-        yPosition += 10;
-        addText('INSTALLATION PLATFORMS', 16, true);
-        addLine();
-        
-        addText('1. OLLAMA (Recommended for Beginners)', 12, true);
-        addText('   • Download from: https://ollama.ai', 11);
-        addText('   • Easy installation, automatic model management', 11);
-        addText('   • Usage: ollama run [model-name]', 11);
-        addText('', 11);
-        
-        addText('2. LM STUDIO (GUI Option)', 12, true);
-        addText('   • Download from: https://lmstudio.ai', 11);
-        addText('   • User-friendly graphical interface', 11);
-        addText('   • No command line needed', 11);
-        addText('', 11);
-        
-        addText('3. LLAMA.CPP (Advanced Users)', 12, true);
-        addText('   • Best for CPU optimization', 11);
-        addText('   • Requires technical knowledge', 11);
-        addText('   • Download GGUF models manually', 11);
+      if (
+        recommendations.excellent.length +
+          recommendations.good.length +
+          recommendations.basic.length ===
+        0
+      ) {
+        para('No compatible models for your specs. Try cloud-based LLMs like ChatGPT or Claude.');
       }
+      y += 4;
 
-      // System Capability Level
-      const capabilityLevel = recommender.getSystemCapabilityLevel();
-      const levelLabels = {
-        low: 'Entry Level',
-        medium: 'Mid Range', 
-        high: 'High End',
-        premium: 'Premium'
-      };
+      // INSTALLATION GUIDE
+      heading('🛠️ Installation Guide');
+      subheading('1. Ollama (Recommended for Beginners)');
+      para('• Download: https://ollama.ai');
+      para('• Simple CLI tool, automatic model download & management.');
+      para('• Usage: ollama run <model>');
+      y += 2;
 
-      // Add new page for optimization tips
-      pdf.addPage();
-      yPosition = margin;
-      
-      addText('OPTIMIZATION TIPS FOR YOUR SYSTEM', 16, true);
-      addLine();
-      
-      addText(`System Capability Level: ${levelLabels[capabilityLevel] || 'Unknown'}`, 14, true);
-      yPosition += 5;
+      subheading('2. LM Studio (GUI Option)');
+      para('• Download: https://lmstudio.ai');
+      para('• User-friendly graphical interface, no CLI needed.');
 
-      // Get and add optimization tips
+      subheading('3. llama.cpp (Advanced Users)');
+      para('• Download and usage: https://github.com/ggerganov/llama.cpp');
+      para('• Best for CPU, needs GGUF models, requires more technical steps.');
+
+      subheading('4. HuggingFace (Advanced/Developers)');
+      para('• Website: https://huggingface.co/models');
+      para('• Model downloads and instructions available per model page.');
+
+      y += 6;
+
+      // OPTIMIZATION TIPS
+      heading('💡 Optimization Tips');
       const tips = recommender.getOptimizationTips();
-      tips.slice(0, 10).forEach((tip, index) => {
-        // Remove emoji and format tip
-        const cleanTip = tip.replace(/^[🔧💾🎮💻🍎🐧🪟📱⚡🗑️❌✅🚀💡⚙️🔋☁️📁]+\s*/, '');
-        addText(`• ${cleanTip}`, 11);
+      tips.forEach((tip, idx) => {
+        para(`${idx + 1}. ${tip.replace(/^[🔧💾🎮💻🍎🐧🪟📱⚡🗑️❌✅🚀💡⚙️🔋☁️📁]+\s*/, '')}`);
       });
+      y += 4;
 
-      // Footer
+      // FOOTER
+      if (y > pageHeight - 20) {
+        pdf.addPage();
+        y = margin;
+      }
       pdf.setFontSize(8);
-      pdf.setTextColor(128, 128, 128);
-      const footerY = pageHeight - 10;
-      pdf.text('Generated by LLM Hardware Compatibility Checker', margin, footerY);
-      pdf.text(`Report created on ${new Date().toLocaleString()}`, pageWidth - margin - 60, footerY);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text(
+        'Generated by LLM Hardware Compatibility Checker | https://your-app-link-here',
+        margin,
+        pageHeight - 10
+      );
+      pdf.text(
+        `Report created on ${new Date().toLocaleString()}`,
+        pageWidth - margin - 70,
+        pageHeight - 10
+      );
 
-      // Save the PDF
+      // Save
       pdf.save(`llm-compatibility-report-${new Date().toISOString().split('T')[0]}.pdf`);
-
       setGeneratedReports(prev => ({ ...prev, pdf: true }));
       toast.success('PDF report downloaded!', { id: 'pdf-report' });
-
     } catch (error) {
       console.error('Failed to generate PDF report:', error);
       toast.error('Failed to generate PDF report. Try HTML format instead.', { id: 'pdf-report' });
@@ -295,6 +290,7 @@ const ReportDownload: React.FC<ReportDownloadProps> = ({
       setIsGenerating(false);
     }
   };
+  // ---- END UPDATED PDF GENERATOR ----
 
   const copyReportSummary = async () => {
     const suitableModels = [
