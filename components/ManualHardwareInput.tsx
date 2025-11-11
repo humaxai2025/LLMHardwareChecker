@@ -14,16 +14,21 @@ interface ManualHardwareInputProps {
   browserDetected: Partial<SystemInfo>;
 }
 
-const ManualHardwareInput: React.FC<ManualHardwareInputProps> = ({ 
-  onComplete, 
-  browserDetected 
+const ManualHardwareInput: React.FC<ManualHardwareInputProps> = ({
+  onComplete,
+  browserDetected
 }) => {
+  // Extract GPU info from browser detection
+  const detectedGpu = browserDetected.gpus && browserDetected.gpus.length > 0
+    ? browserDetected.gpus[0]
+    : null;
+
   const [manualInput, setManualInput] = useState({
     os: browserDetected.os || 'Windows',
     processor: '',
     cpuCores: browserDetected.cpuCores || 8,
     totalRamGB: 16,
-    gpuName: '',
+    gpuName: detectedGpu?.name || '',
     gpuVramGB: 8,
   });
 
@@ -213,9 +218,25 @@ const ManualHardwareInput: React.FC<ManualHardwareInputProps> = ({
                 </div>
 
                 <div className="space-y-4">
+                  {browserDetected.gpus && browserDetected.gpus.length > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="text-sm font-medium text-green-800 mb-1">✓ GPU Detected</h4>
+                          <div className="text-sm text-green-700 font-medium">
+                            {browserDetected.gpus[0].name}
+                          </div>
+                          <p className="text-xs text-green-600 mt-1">
+                            This GPU has been automatically populated. You can edit or specify VRAM below.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      GPU Model (Optional)
+                      GPU Model {!detectedGpu && '(Optional)'}
                     </label>
                     <input
                       type="text"
@@ -224,8 +245,13 @@ const ManualHardwareInput: React.FC<ManualHardwareInputProps> = ({
                       placeholder="e.g., NVIDIA RTX 4090, AMD RX 7900 XTX"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    {!manualInput.gpuName && !detectedGpu && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Leave blank if you don't have a dedicated GPU
+                      </p>
+                    )}
                   </div>
-                  
+
                   {manualInput.gpuName && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -246,17 +272,9 @@ const ManualHardwareInput: React.FC<ManualHardwareInputProps> = ({
                         <option value={24}>24 GB</option>
                         <option value={48}>48 GB</option>
                       </select>
-                    </div>
-                  )}
-                  
-                  {browserDetected.gpus && browserDetected.gpus.length > 0 && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h4 className="text-sm font-medium text-blue-800 mb-2">Browser Detected:</h4>
-                      {browserDetected.gpus.map((gpu, index) => (
-                        <div key={index} className="text-sm text-blue-700">
-                          {gpu.name} ({gpu.vramGB})
-                        </div>
-                      ))}
+                      <p className="text-xs text-gray-500 mt-1">
+                        Browsers cannot detect VRAM amount. Please select your GPU's VRAM.
+                      </p>
                     </div>
                   )}
                 </div>

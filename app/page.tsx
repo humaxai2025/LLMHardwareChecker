@@ -28,6 +28,10 @@ import ReportDownload from '../components/ReportDownload';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackButton from '../components/FeedbackButton';
 import ManualHardwareInput from '../components/ManualHardwareInput';
+import ProfileManagerComponent from '../components/ProfileManager';
+import AdvancedToolsTabs from '../components/AdvancedToolsTabs';
+import ThemeToggle from '../components/ThemeToggle';
+import KeyboardShortcuts from '../components/KeyboardShortcuts';
 
 interface AnalysisState {
   systemInfo: SystemInfo | null;
@@ -211,7 +215,7 @@ export default function HomePage() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="min-h-screen bg-gray-50">
         <Toaster 
           position="top-right"
           toastOptions={{
@@ -223,27 +227,27 @@ export default function HomePage() {
           }}
         />
         
-        {/* Header */}
-        <header className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600">
-          <div className="absolute inset-0 bg-black opacity-10"></div>
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+        {/* Professional Header */}
+        <header className="relative bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
+              transition={{ duration: 0.6 }}
               className="text-center"
             >
               <div className="flex justify-center mb-6">
-                <div className="p-3 bg-white bg-opacity-20 rounded-full">
-                  <CpuChipIcon className="h-12 w-12 text-white" />
+                <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                  <CpuChipIcon className="h-10 w-10 text-blue-600" />
                 </div>
               </div>
-              <h1 className="text-5xl font-bold text-white mb-6">
+              <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4 tracking-tight">
                 LLM Hardware Compatibility Checker
+                <span className="ml-3 text-lg font-normal text-blue-600 dark:text-blue-400">v1.0.0</span>
               </h1>
-              <p className="text-xl text-blue-100 max-w-3xl mx-auto mb-8 leading-relaxed">
-                Discover which Large Language Models your system can run locally. 
-                Get personalized recommendations with detailed installation instructions.
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8 leading-relaxed">
+                Professional hardware analysis for running Large Language Models locally.
+                Get accurate recommendations tailored to your system specifications.
               </p>
               
               {!state.analysisComplete && !isMounted && (
@@ -255,21 +259,22 @@ export default function HomePage() {
               
               {!state.analysisComplete && isMounted && !state.showManualInput && (
                 <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={startAutomaticAnalysis}
                   disabled={state.isLoading}
-                  className="inline-flex items-center px-8 py-4 bg-white text-blue-600 font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:ring-4 focus:ring-blue-200"
+                  aria-label="Start hardware analysis"
                 >
                   {state.isLoading ? (
                     <>
                       <LoadingSpinner className="mr-3" />
-                      Detecting Capabilities...
+                      Analyzing...
                     </>
                   ) : (
                     <>
                       <PlayIcon className="h-5 w-5 mr-3" />
-                      Start Hardware Analysis
+                      Start Analysis
                     </>
                   )}
                 </motion.button>
@@ -283,6 +288,7 @@ export default function HomePage() {
           <AnimatePresence mode="wait">
             {state.error && (
               <motion.div
+                key="error-message"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
@@ -304,49 +310,17 @@ export default function HomePage() {
               </motion.div>
             )}
 
-            {/* Browser Limitation Warning & Manual Input */}
+            {/* Manual Hardware Input */}
             {state.showManualInput && state.browserDetected && (
               <motion.div
+                key="manual-input"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 className="mb-8"
               >
-                {/* Browser Limitation Explanation */}
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
-                  <div className="flex">
-                    <ExclamationTriangleIcon className="h-6 w-6 text-yellow-400 mr-3 flex-shrink-0" />
-                    <div>
-                      <h3 className="text-lg font-medium text-yellow-800 mb-2">Browser Security Limitations Detected</h3>
-                      <p className="text-yellow-700 mb-4">
-                        For security reasons, browsers cannot access detailed hardware information like your actual RAM amount or processor model. 
-                        <strong> This is why you see limited/incorrect specs below.</strong>
-                      </p>
-                      
-                      <div className="bg-yellow-100 rounded-lg p-4 mb-4">
-                        <h4 className="font-medium text-yellow-800 mb-2">What your browser detected:</h4>
-                        <div className="text-sm text-yellow-700 space-y-1">
-                          <div>• OS: {state.browserDetected.os}</div>
-                          <div>• CPU Threads: {state.browserDetected.cpuCores}</div>
-                          <div>• Platform: {state.browserDetected.architecture}</div>
-                          {state.browserDetected.gpus && state.browserDetected.gpus.length > 0 && (
-                            <div>• GPU: {state.browserDetected.gpus[0].name}</div>
-                          )}
-                        </div>
-                        <p className="text-xs text-yellow-600 mt-2 font-medium">
-                          ⚠️ This is likely NOT your actual hardware specs!
-                        </p>
-                      </div>
-                      
-                      <p className="text-yellow-700">
-                        Please enter your <strong>actual hardware specifications</strong> below for accurate LLM recommendations.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Manual Input Component */}
-                <ManualHardwareInput 
+                <ManualHardwareInput
                   onComplete={handleManualInput}
                   browserDetected={state.browserDetected}
                 />
@@ -355,6 +329,7 @@ export default function HomePage() {
 
             {state.isAnalyzing && (
               <motion.div
+                key="analyzing"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
@@ -384,6 +359,7 @@ export default function HomePage() {
 
             {state.analysisComplete && state.systemInfo && state.recommendations && state.recommender && (
               <motion.div
+                key="analysis-complete"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ staggerChildren: 0.1 }}
@@ -393,29 +369,35 @@ export default function HomePage() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"
+                  className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden"
                 >
-                  <div className="bg-gradient-to-r from-green-500 to-blue-500 px-6 py-4">
-                    <div className="flex items-center justify-between">
+                  <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5 border-b border-blue-800">
+                    <div className="flex items-center justify-between flex-wrap gap-4">
                       <div className="flex items-center">
-                        <CheckCircleIcon className="h-8 w-8 text-white mr-3" />
+                        <div className="p-2 bg-white bg-opacity-20 rounded-lg mr-4">
+                          <CheckCircleIcon className="h-7 w-7 text-white" />
+                        </div>
                         <div>
-                          <h2 className="text-2xl font-bold text-white">Analysis Complete!</h2>
-                          <p className="text-green-100">Your system has been analyzed successfully</p>
+                          <h2 className="text-2xl font-bold text-white">Analysis Complete</h2>
+                          <p className="text-blue-100 text-sm">Comprehensive hardware compatibility results</p>
                         </div>
                       </div>
-                      <button
-                        onClick={restartAnalysis}
-                        className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors mr-3"
-                      >
-                        Edit Hardware Specs
-                      </button>
-                      <button
-                        onClick={restartAnalysis}
-                        className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors"
-                      >
-                        Run Again
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={restartAnalysis}
+                          className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white text-sm font-medium rounded-lg transition-all focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                          aria-label="Edit hardware specifications"
+                        >
+                          Edit Specs
+                        </button>
+                        <button
+                          onClick={restartAnalysis}
+                          className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white text-sm font-medium rounded-lg transition-all focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                          aria-label="Run analysis again"
+                        >
+                          Run Again
+                        </button>
+                      </div>
                     </div>
                   </div>
                   
@@ -453,9 +435,16 @@ export default function HomePage() {
                 <SystemSpecsCard systemInfo={state.systemInfo} />
 
                 {/* Model Recommendations */}
-                <ModelRecommendations 
+                <ModelRecommendations
                   recommendations={state.recommendations}
                   systemInfo={state.systemInfo}
+                />
+
+                {/* Advanced Tools Tabs */}
+                <AdvancedToolsTabs
+                  systemInfo={state.systemInfo}
+                  currentCompatibleCount={getSuitableModelsCount()}
+                  onSelectProfile={(systemInfo) => handleManualInput(systemInfo)}
                 />
 
                 {/* Installation Guide */}
@@ -465,7 +454,7 @@ export default function HomePage() {
                 <OptimizationTips recommender={state.recommender} />
 
                 {/* Report Download */}
-                <ReportDownload 
+                <ReportDownload
                   systemInfo={state.systemInfo}
                   recommendations={state.recommendations}
                   recommender={state.recommender}
@@ -473,6 +462,21 @@ export default function HomePage() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Profile Manager - Before Analysis */}
+          {!state.analysisComplete && !state.isAnalyzing && !state.showManualInput && isMounted && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="mb-8"
+            >
+              <ProfileManagerComponent
+                onSelectProfile={(systemInfo) => handleManualInput(systemInfo)}
+                currentSystemInfo={null}
+              />
+            </motion.div>
+          )}
 
           {/* Info Section */}
           {!state.analysisComplete && !state.isAnalyzing && !state.showManualInput && isMounted && (
@@ -482,37 +486,49 @@ export default function HomePage() {
               transition={{ delay: 0.3 }}
               className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8"
             >
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <div className="flex items-center mb-4">
-                  <ComputerDesktopIcon className="h-8 w-8 text-blue-500 mr-3" />
-                  <h3 className="text-xl font-semibold text-gray-800">System Analysis</h3>
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow">
+                <div className="flex items-start mb-4">
+                  <div className="p-3 bg-blue-50 rounded-lg mr-4">
+                    <ComputerDesktopIcon className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">System Analysis</h3>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Enter your hardware specifications and receive instant compatibility analysis
+                      for running Large Language Models locally.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-gray-600">
-                  We'll detect what we can from your browser, then ask you to confirm your actual hardware 
-                  specifications for precise LLM compatibility analysis.
-                </p>
               </div>
-              
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <div className="flex items-center mb-4">
-                  <CpuChipIcon className="h-8 w-8 text-purple-500 mr-3" />
-                  <h3 className="text-xl font-semibold text-gray-800">Accurate Recommendations</h3>
+
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow">
+                <div className="flex items-start mb-4">
+                  <div className="p-3 bg-green-50 rounded-lg mr-4">
+                    <CpuChipIcon className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Smart Recommendations</h3>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Get personalized model recommendations based on your system capabilities,
+                      from lightweight 2B models to powerful 70B+ models.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-gray-600">
-                  Get personalized model recommendations based on your <strong>actual</strong> system capabilities,
-                  from lightweight 2B models to powerful 70B+ models.
-                </p>
               </div>
-              
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <div className="flex items-center mb-4">
-                  <DocumentArrowDownIcon className="h-8 w-8 text-green-500 mr-3" />
-                  <h3 className="text-xl font-semibold text-gray-800">Detailed Reports</h3>
+
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow">
+                <div className="flex items-start mb-4">
+                  <div className="p-3 bg-purple-50 rounded-lg mr-4">
+                    <DocumentArrowDownIcon className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Detailed Reports</h3>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Download comprehensive reports with installation instructions,
+                      optimization tips, and platform-specific setup guides.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-gray-600">
-                  Download comprehensive reports with installation instructions, 
-                  optimization tips, and platform-specific setup guides.
-                </p>
               </div>
             </motion.div>
           )}
@@ -522,24 +538,26 @@ export default function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="mt-16 bg-blue-50 border border-blue-200 rounded-lg p-6"
+            className="mt-16 bg-white border border-gray-200 rounded-lg p-6 shadow-sm"
           >
-            <div className="flex">
-              <InformationCircleIcon className="h-6 w-6 text-blue-400 mr-3 flex-shrink-0" />
+            <div className="flex items-start">
+              <div className="p-2 bg-blue-50 rounded-lg mr-4 flex-shrink-0">
+                <InformationCircleIcon className="h-5 w-5 text-blue-600" />
+              </div>
               <div>
-                <h3 className="text-lg font-medium text-blue-800 mb-2">Privacy & How It Works</h3>
-                <div className="text-blue-700 space-y-2">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Privacy & Security</h3>
+                <div className="text-sm text-gray-600 space-y-2">
                   <p>
-                    <strong>🔒 Completely Private:</strong> All analysis happens locally in your browser. 
-                    No hardware information is sent to our servers.
+                    <strong className="text-gray-900">🔒 Client-Side Processing:</strong> All analysis is performed locally in your browser.
+                    No hardware information is transmitted to external servers.
                   </p>
                   <p>
-                    <strong>🛡️ Browser Limitations:</strong> For security, browsers cannot access your actual RAM, 
-                    processor model, or GPU specs. You'll manually enter your real specifications.
+                    <strong className="text-gray-900">✅ Accurate Recommendations:</strong> Receive personalized model suggestions
+                    based on your actual system specifications and capabilities.
                   </p>
                   <p>
-                    <strong>✅ Accurate Results:</strong> Manual input ensures you get recommendations 
-                    based on your <em>actual</em> hardware, not limited browser detection.
+                    <strong className="text-gray-900">📊 Comprehensive Analysis:</strong> Access detailed compatibility reports,
+                    installation guides, and optimization recommendations tailored to your hardware.
                   </p>
                 </div>
               </div>
@@ -547,8 +565,28 @@ export default function HomePage() {
           </motion.div>
         </main>
 
+        {/* Footer */}
+        <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="text-center">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                Built with ❤️ by <span className="font-semibold text-blue-600 dark:text-blue-400">Sriram Srinivasan</span>
+              </p>
+              <p className="text-gray-500 dark:text-gray-500 text-xs mt-2">
+                LLM Hardware Compatibility Checker v1.0.0
+              </p>
+            </div>
+          </div>
+        </footer>
+
         {/* Floating Feedback Button */}
         {isMounted && <FeedbackButton />}
+
+        {/* Theme Toggle */}
+        {isMounted && <ThemeToggle />}
+
+        {/* Keyboard Shortcuts */}
+        {isMounted && <KeyboardShortcuts />}
       </div>
     </ErrorBoundary>
   );

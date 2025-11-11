@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(npm audit:*)",
+      "Bash(npm run build:*)",
+      "WebSearch",
+      "WebFetch(domain:ollama.com)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
